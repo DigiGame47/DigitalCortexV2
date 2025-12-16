@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Login | DigitalCortex</title>
+    <link rel="stylesheet" href="/css/styles.css" />
+</head>
+
+<body class="bg">
+    <main class="shell">
+        <section class="card auth">
+            <div class="brand compact">
+                <div class="logo">DC</div>
+                <div>
+                    <h1>Bienvenido</h1>
+                    <p class="muted">Inicia sesión para continuar</p>
+                </div>
+            </div>
+
+            <form id="loginForm" class="form">
+                <label class="field">
+                    <span>Email</span>
+                    <input id="email" type="email" placeholder="tu@correo.com" autocomplete="email" required />
+                </label>
+
+                <label class="field">
+                    <span>Contraseña</span>
+                    <input id="password" type="password" placeholder="••••••••" autocomplete="current-password"
+                        required />
+                </label>
+
+                <div id="msg" class="msg" hidden></div>
+
+                <button id="btnLogin" class="btn primary" type="submit">Iniciar sesión</button>
+        
+
+                <button id="btnDemoCreate" class="btn ghost" type="button">
+                    Crear cuenta con estos datos
+                </button>
+
+                        <button type="button" id="btnGoogle" class="btn google">
+                    Continuar con Google
+                </button>
+
+                <p class="mini muted">
+                    Tip: Para producción, luego agregamos “Olvidé mi contraseña”, Google Sign-In, y reglas de seguridad.
+                </p>
+            </form>
+        </section>
+    </main>
+
+    <script type="module" src="/js/auth.js"></script>
+</body>
+
+</html>

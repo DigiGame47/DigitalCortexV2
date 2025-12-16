@@ -1,0 +1,343 @@
+:root{
+  /* azul del logo (aprox) */
+  --brand:#4f6fff;
+  --bg:#0b0f1a;
+  --panel:#131a2a;
+  --panel2:#0f1424;
+  --text:#eef0ff;
+  --muted:rgba(238,240,255,.68);
+  --stroke:rgba(255,255,255,.08);
+  --pill:rgba(79,111,255,.14);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  background: radial-gradient(900px 600px at 70% 20%, rgba(79,111,255,.18), transparent 60%),
+              radial-gradient(900px 600px at 15% 60%, rgba(79,111,255,.10), transparent 60%),
+              var(--bg);
+  color:var(--text);
+}
+
+.app-layout{display:flex;height:100vh}
+
+/* ========== SIDEBAR ========== */
+.sidebar{
+  width:280px;
+  background:rgba(19,26,42,.82);
+  border-right:1px solid var(--stroke);
+  backdrop-filter: blur(10px);
+  padding:16px 14px;
+  display:flex;
+  flex-direction:column;
+  transition: width .2s ease;
+}
+
+.sidebar-top{padding:6px 6px 14px}
+
+.brand{display:flex;gap:10px;align-items:center}
+.brand-icon{
+  width:44px;height:44px;border-radius:14px;
+  display:grid;place-items:center;
+  background: linear-gradient(135deg, rgba(79,111,255,.95), rgba(79,111,255,.55));
+  color:#0b0f1a;font-weight:900;font-size:14px;
+}
+.brand-title{font-weight:800;letter-spacing:.8px;font-size:12px}
+.brand-sub{font-size:10px;color:var(--muted);margin-top:2px}
+
+.menu{
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:6px;
+  height:100%;
+}
+
+.menu-item, .submenu-item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:10px 10px;
+  border-radius:12px;
+  cursor:pointer;
+  color:var(--muted);
+  user-select:none;
+  text-decoration:none;
+  transition: background .15s ease, color .15s ease, transform .06s ease;
+}
+.menu-item:hover, .submenu-item:hover{background:rgba(255,255,255,.05);color:var(--text)}
+.menu-item:active, .submenu-item:active{transform: translateY(1px)}
+
+.menu-item.active, .submenu-item.active{
+  background: var(--pill);
+  color: var(--text);
+  border:1px solid rgba(79,111,255,.20);
+}
+
+.mi-icon{
+  width:26px;height:26px;
+  display:grid;place-items:center;
+  border-radius:10px;
+  background: rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+}
+.mi-icon svg{width:16px;height:16px;fill:rgba(238,240,255,.82)}
+
+.mi-text{white-space:nowrap}
+.chev{margin-left:auto;opacity:.65}
+
+.menu-group .submenu{
+  display:none;
+  flex-direction:column;
+  gap:6px;
+  padding:6px 0 6px 10px;
+}
+
+.logout{
+  margin-top:auto;              /* ✅ queda hasta abajo */
+  color:#ff8585;
+}
+.logout .mi-icon svg{fill:#ff9a9a}
+
+/* ===== Collapsed sidebar ===== */
+.sidebar.collapsed{
+  width:86px;
+}
+.sidebar.collapsed .brand-text{display:none;}
+.sidebar.collapsed .mi-text{display:none;}
+.sidebar.collapsed .chev{display:none;}
+.sidebar.collapsed .menu{padding:6px 4px;}
+.sidebar.collapsed .menu-item,
+.sidebar.collapsed .submenu-item{
+  justify-content:center;
+  padding:12px 8px;
+}
+.sidebar.collapsed .mi-icon{
+  background: transparent;       /* ✅ iconos “transparentes” */
+  border:1px solid rgba(79,111,255,.18);
+}
+.sidebar.collapsed .menu-group .submenu{
+  display:none !important;       /* no mostrar submenus al colapsar */
+}
+
+/* ========== MAIN ========== */
+.main{flex:1;display:flex;flex-direction:column}
+
+.topbar{
+  height:64px;
+  background: rgba(15,20,36,.70);
+  border-bottom:1px solid var(--stroke);
+  backdrop-filter: blur(10px);
+  display:flex;
+  align-items:center;
+  gap:14px;
+  padding:0 18px;
+}
+
+.icon-btn{
+  width:40px;height:40px;
+  border-radius:14px;
+  border:1px solid rgba(255,255,255,.08);
+  background: rgba(255,255,255,.04);
+  display:grid;place-items:center;
+  cursor:pointer;
+}
+.icon-btn svg{width:18px;height:18px;fill:rgba(238,240,255,.86)}
+.icon-btn:hover{background: rgba(255,255,255,.06)}
+
+.page-title{
+  margin:0;
+  font-size:18px;
+  font-weight:800;
+  letter-spacing:.3px;
+  flex:1;
+}
+
+.top-actions{display:flex;align-items:center;gap:10px}
+
+.user-pill{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;
+  border-radius:999px;
+  background: rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  color:rgba(238,240,255,.9);
+  font-size:13px;
+}
+.user-dot{
+  width:10px;height:10px;border-radius:50%;
+  background: var(--brand);
+  box-shadow: 0 0 0 6px rgba(79,111,255,.14);
+}
+
+.content{padding:18px}
+.card{
+  background: rgba(19,26,42,.70);
+  border:1px solid var(--stroke);
+  border-radius:18px;
+  padding:16px;
+}
+
+
+/* ===============================
+   MATERIAL SYMBOLS – CONFIG
+   =============================== */
+
+.material-symbols-rounded{
+  font-variation-settings:
+    "FILL" 0,
+    "wght" 500,
+    "GRAD" 0,
+    "opsz" 24;
+  font-size: 20px;
+  line-height: 1;
+  user-select: none;
+}
+
+/* ===============================
+   ICONO CONTENEDOR (SIDEBAR)
+   =============================== */
+
+.mi-icon{
+  width:28px;
+  height:28px;
+  display:grid;
+  place-items:center;
+  border-radius:10px;
+  background: rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  color: rgba(238,240,255,.85);
+  transition: all .15s ease;
+}
+
+/* Hover */
+.menu-item:hover .mi-icon,
+.submenu-item:hover .mi-icon{
+  background: rgba(255,255,255,.08);
+  color: #ffffff;
+}
+
+/* Activo */
+.menu-item.active .mi-icon,
+.submenu-item.active .mi-icon{
+  background: rgba(79,111,255,.20);
+  border-color: rgba(79,111,255,.35);
+  color: #ffffff;
+}
+
+/* ===============================
+   SIDEBAR COLAPSADO
+   =============================== */
+
+.sidebar.collapsed .mi-icon{
+  background: transparent;
+  border:1px solid rgba(79,111,255,.25);
+  color: rgba(238,240,255,.9);
+}
+
+.sidebar.collapsed .menu-item:hover .mi-icon{
+  background: rgba(79,111,255,.12);
+}
+
+/* Ocultar texto al colapsar */
+.sidebar.collapsed .mi-text{
+  display:none;
+}
+
+/* ===============================
+   SUBMENÚ
+   =============================== */
+
+.submenu .mi-icon{
+  width:24px;
+  height:24px;
+  border-radius:8px;
+  background: rgba(255,255,255,.03);
+}
+
+/* ===============================
+   TOPBAR ICON BUTTONS
+   =============================== */
+
+.icon-btn{
+  width:40px;
+  height:40px;
+  border-radius:14px;
+  display:grid;
+  place-items:center;
+  background: rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.08);
+  cursor:pointer;
+  transition: all .15s ease;
+}
+
+.icon-btn .material-symbols-rounded{
+  font-size:22px;
+  color: rgba(238,240,255,.9);
+}
+
+.icon-btn:hover{
+  background: rgba(255,255,255,.08);
+}
+
+/* ===============================
+   BOTÓN SALIR (FIJO ABAJO)
+   =============================== */
+
+.menu-item.logout{
+  margin-top:auto;
+  color:#ff8a8a;
+}
+
+.menu-item.logout .mi-icon{
+  border-color: rgba(255,138,138,.35);
+  color:#ff9a9a;
+}
+
+.menu-item.logout:hover .mi-icon{
+  background: rgba(255,138,138,.15);
+  color:#ffffff;
+}
+
+/* ===============================
+   TOOLTIP NATIVO (AL COLAPSAR)
+   =============================== */
+
+.sidebar.collapsed .menu-item,
+.sidebar.collapsed .submenu-item{
+  position: relative;
+}
+
+/* ===============================
+   TRANSICIONES GENERALES
+   =============================== */
+
+.menu-item,
+.submenu-item{
+  transition: background .15s ease, color .15s ease;
+}
+
+/* SELECT (COMBOBOX) PRO */
+.dc-input{
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+
+select.dc-input{
+  padding-right: 38px; /* espacio para flecha */
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='rgba(238,240,255,0.75)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 18px 18px;
+}
+
+/* dropdown options (limitado por el sistema, pero mejora) */
+select.dc-input option{
+  background: #0f1424;
+  color: #eef0ff;
+}
+
+
