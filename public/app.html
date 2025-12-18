@@ -191,6 +191,24 @@
 <script type="module">
   import { mountInventarioGeneral } from "/js/inventario.js";
 
+  console.log('[app] main module init');
+
+  // Attempt to load compras module dynamically so a failure there doesn't block inventory
+  let mountComprasRecepcion = null;
+  let mountComprasSeguimiento = null;
+  (async ()=>{
+    try{
+      const mod = await import('/js/compras.js');
+      mountComprasRecepcion = mod.mountComprasRecepcion;
+      mountComprasSeguimiento = mod.mountComprasSeguimiento;
+      console.log('[app] compras module loaded');
+    }catch(e){
+      console.error('Failed to load compras module', e);
+      mountComprasRecepcion = async (container)=> { container.innerHTML = `<div class="card">Error cargando módulo Compras: ${e.message}</div>`; };
+      mountComprasSeguimiento = mountComprasRecepcion;
+    }
+  })();
+
   // Router simple de vistas
   window.DC = {
     openView: async (key, title) => {
@@ -199,17 +217,30 @@
 
       if (!container) return;
 
-      switch (key) {
-        case "inventario_general":
-          await mountInventarioGeneral(container);
-          break;
+      try{
+        switch (key) {
+          case "inventario_general":
+            await mountInventarioGeneral(container);
+            break;
 
-        default:
-          container.innerHTML = `
-            <div class="card">
-              Vista en construcción: <b>${title || key}</b>
-            </div>
-          `;
+          case "compras_recepcion":
+            await (mountComprasRecepcion || (async (c)=>{ c.innerHTML = `<div class="card">Cargando módulo Compras...</div>`; }))(container);
+            break;
+
+          case "compras_seguimiento":
+            await (mountComprasSeguimiento || (async (c)=>{ c.innerHTML = `<div class="card">Cargando módulo Compras...</div>`; }))(container);
+            break;
+
+          default:
+            container.innerHTML = `
+              <div class="card">
+                Vista en construcción: <b>${title || key}</b>
+              </div>
+            `;
+        }
+      }catch(e){
+        console.error('Error al abrir vista', key, e);
+        container.innerHTML = `<div class="card"><b>Error cargando la vista:</b> ${e.message || e}</div>`;
       }
     }
   };

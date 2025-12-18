@@ -62,13 +62,15 @@ function ensureUIStyles(){
     /* Layout grid: table + right panel */
     .inv-grid{
       display:grid;
-      grid-template-columns: 1fr 380px;
+      /* allow a variable drawer width, bigger by default */
+      grid-template-columns: 1fr auto var(--drawerW, 520px);
       gap: 14px;
       align-items:start;
     }
     @media (max-width: 1100px){
       .inv-grid{ grid-template-columns: 1fr; }
       .inv-drawer{ position:relative; right:auto; top:auto; height:auto; }
+      .drawer-resizer{ display:none; }
     }
 
     /* Table */
@@ -93,9 +95,17 @@ function ensureUIStyles(){
       padding: 12px;
       position: sticky;
       top: 12px;
-      height: calc(100vh - 140px);
+      /* width control */
+      width: var(--drawerW, 520px);
+      min-width: 420px;
+      max-width: 920px;
+      height: calc(100vh - 120px);
       overflow: auto;
     }
+
+    .drawer-resizer{ width:12px; cursor: col-resize; display:block; border-radius:8px; background:transparent; position:relative; }
+    .drawer-resizer::before{ content:""; position:absolute; top:8px; bottom:8px; left:5px; width:2px; background: rgba(255,255,255,.06); border-radius:2px; }
+
     .drawer-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
     .drawer-title{ font-weight:900; letter-spacing:.2px; margin:0; font-size:14px; color: rgba(238,240,255,.92); }
     .drawer-sub{ font-size:12px; color: rgba(238,240,255,.60); margin-top:2px; }
@@ -139,6 +149,12 @@ function ensureUIStyles(){
       width:34px; height:34px; border-radius:10px; object-fit:cover;
       border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.05);
     }
+
+    /* Suggestions (autocomplete) */
+    .dc-suggest-wrap{ position:relative; }
+    .suggestions{ position:absolute; left:0; top:calc(100% + 6px); min-width:220px; max-width:calc(100vw - 40px); background:#0f1424; border:1px solid rgba(255,255,255,.08); border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.45); z-index:80; max-height:240px; overflow:auto; }
+    .suggestion-item{ padding:8px 10px; cursor:pointer; color: rgba(238,240,255,.95); font-size:13px; }
+    .suggestion-item:hover, .suggestion-item.active{ background: rgba(79,111,255,.12); }
   `;
   document.head.appendChild(s);
 }
@@ -183,6 +199,7 @@ function viewTemplate(){
               <th>Foto</th>
               <th>SKU</th>
               <th>Producto</th>
+              <th>CLAVE</th>
               <th>Categoría</th>
               <th>Condición</th>
               <th>Estado</th>
@@ -199,6 +216,8 @@ function viewTemplate(){
         </table>
       </div>
     </div>
+
+    <div class="drawer-resizer" id="drawerResizer" title="Ajustar ancho del panel" aria-hidden="true"></div>
 
     <!-- RIGHT PANEL -->
     <aside class="inv-drawer" id="drawer">
@@ -274,6 +293,7 @@ function renderTable(){
         <td>${foto ? `<img class="dc-img-sm" src="${foto}" />` : `<div class="dc-img-sm"></div>`}</td>
         <td>${r.sku || ""}</td>
         <td><span class="dc-pill">${r.nombre || ""}</span></td>
+        <td>${escapeHtml(r.external_key || (r.nombre || "") + '|' + (r.condicion || ''))}</td>
         <td>${r.categoria || ""}</td>
         <td>${r.condicion || ""}</td>
         <td>${r.estado || ""}</td>
@@ -499,6 +519,158 @@ function wireDrawerForm(r){
   });
 
   $("#drawerForm")?.addEventListener("submit", (ev) => onSave(ev, r));
+
+  // Autocomplete: Nombre, Categoria, Marca, Modelo
+  setupAutocompleteFor("pNombre", "nombre");
+  setupAutocompleteFor("pCategoria", "categoria");
+  setupAutocompleteFor("pMarca", "marca");
+  setupAutocompleteFor("pModelo", "modelo");
+}
+
+/* =========================
+   AUTOCOMPLETE HELPERS
+   ========================= */
+function distinctOriginal(arr, key){
+  const map = new Map();
+  for (const x of arr){
+    const raw = (x[key] || "").toString();
+    const k = normalize(raw);
+    if (k && !map.has(k)) map.set(k, raw);
+  }
+  return Array.from(map.values()).sort((a,b)=> a.localeCompare(b));
+}
+
+function setupAutocompleteFor(inputId, key){
+  const input = document.getElementById(inputId);
+  if (!input) return;
+
+  // ensure wrapper exists (for absolute positioning)
+  let wrap = input.closest('.dc-suggest-wrap');
+  if (!wrap){
+    wrap = document.createElement('div');
+    wrap.className = 'dc-suggest-wrap';
+    input.parentElement.insertBefore(wrap, input);
+    wrap.appendChild(input);
+  }
+
+  // create suggestions container
+  let sugg = wrap.querySelector('.suggestions');
+  if (!sugg){
+    sugg = document.createElement('div');
+    sugg.className = 'suggestions';
+    sugg.style.display = 'none';
+    wrap.appendChild(sugg);
+  }
+
+  let activeIdx = -1;
+  let items = [];
+
+  function hide(){ sugg.style.display = 'none'; activeIdx = -1; items = []; }
+  function showList(list){
+    items = list.slice(0, 12);
+    if (!items.length){ hide(); return; }
+    sugg.innerHTML = items.map((v, i) => `<div class="suggestion-item" data-idx="${i}" data-val="${escapeHtml(v)}">${escapeHtml(v)}</div>`).join('');
+    // attach click
+    sugg.querySelectorAll('.suggestion-item').forEach(it => it.addEventListener('mousedown', (ev)=>{
+      ev.preventDefault(); // prevent blur before click
+      const val = it.dataset.val;
+      input.value = val;
+      input.dispatchEvent(new Event('input'));
+      hide();
+    }));
+    sugg.style.display = 'block';
+    activeIdx = -1;
+  }
+
+  function onInput(){
+    const q = normalize(input.value || '');
+    if (!q) { hide(); return; }
+    const all = distinctOriginal(state.rows, key);
+    const filtered = all.filter(v => normalize(v).includes(q));
+    showList(filtered);
+  }
+
+  function onKey(ev){
+    if (sugg.style.display === 'none') return;
+    const nodes = sugg.querySelectorAll('.suggestion-item');
+    if (!nodes.length) return;
+    if (ev.key === 'ArrowDown'){
+      ev.preventDefault(); activeIdx = Math.min(activeIdx + 1, nodes.length - 1); updateActive();
+    } else if (ev.key === 'ArrowUp'){
+      ev.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); updateActive();
+    } else if (ev.key === 'Enter'){
+      if (activeIdx >= 0 && nodes[activeIdx]){
+        ev.preventDefault(); nodes[activeIdx].dispatchEvent(new MouseEvent('mousedown'));
+      }
+    } else if (ev.key === 'Escape'){
+      hide();
+    }
+  }
+
+  function updateActive(){
+    const nodes = sugg.querySelectorAll('.suggestion-item');
+    nodes.forEach((n, i)=> n.classList.toggle('active', i === activeIdx));
+    if (activeIdx >= 0 && nodes[activeIdx]) nodes[activeIdx].scrollIntoView({ block:'nearest' });
+  }
+
+  input.addEventListener('input', onInput);
+  input.addEventListener('keydown', onKey);
+  input.addEventListener('blur', ()=> setTimeout(hide, 180));
+}
+
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* =========================
+   RESIZER
+   ========================= */
+function initResizer(container){
+  const resizer = container.querySelector('#drawerResizer');
+  const drawer = container.querySelector('#drawer');
+  if (!resizer || !drawer) return;
+
+  // restore saved width
+  const saved = localStorage.getItem('dc_drawer_w');
+  if (saved) document.documentElement.style.setProperty('--drawerW', saved + 'px');
+
+  const MIN = 420, MAX = 920, BREAK = 1100;
+  let dragging = false;
+  let startX = 0;
+  let startW = 0;
+
+  resizer.addEventListener('pointerdown', (ev) => {
+    if (window.innerWidth <= BREAK) return; // ignore on small screens
+    dragging = true;
+    startX = ev.clientX;
+    startW = drawer.getBoundingClientRect().width;
+    resizer.setPointerCapture(ev.pointerId);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  function onMove(ev){
+    if (!dragging) return;
+    const dx = ev.clientX - startX;
+    let newW = Math.round(startW + dx); // startW + dx
+    // clamp
+    newW = Math.max(MIN, Math.min(MAX, newW));
+    document.documentElement.style.setProperty('--drawerW', newW + 'px');
+  }
+
+  function stop(ev){
+    if (!dragging) return;
+    dragging = false;
+    try{ resizer.releasePointerCapture(ev.pointerId); } catch(e){}
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    const cur = getComputedStyle(document.documentElement).getPropertyValue('--drawerW')?.trim();
+    if (cur) localStorage.setItem('dc_drawer_w', cur.replace('px',''));
+  }
+
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', stop);
+  window.addEventListener('resize', () => {
+    if (window.innerWidth <= BREAK) return;
+  });
 }
 
 /* =========================
@@ -561,6 +733,8 @@ async function onSave(ev, currentRow){
     garantia_meses,
     ubicacion,
     notas,
+    // clave primaria para link: nombre + '|' + condicion
+    external_key: `${nombre}|${condicion}`,
     updated_at: serverTimestamp(),
   };
 
@@ -667,4 +841,7 @@ export async function mountInventarioGeneral(container){
   await refresh();
   renderTable();
   renderDrawer();
+
+  // initialize resizer (allows adjusting drawer width)
+  initResizer(container);
 }
