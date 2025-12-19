@@ -1,11 +1,11 @@
 import { db, storage } from "./firebase.js";
 import {
   collection, getDocs, addDoc, doc, updateDoc, deleteDoc,
-  serverTimestamp, query, where
+  serverTimestamp, query, where, limit
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
 import {
-  ref, uploadBytes, getDownloadURL
+  ref, uploadBytes, getDownloadURL, deleteObject
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-storage.js";
 
 const $ = (q) => document.querySelector(q);
@@ -19,7 +19,9 @@ const state = {
 
 function n(v){ return Number(v || 0); }
 function money(v){ return n(v).toFixed(2); }
-function normalize(s){ return (s||"").toString().trim().toUpperCase(); }
+function normalize(s){
+  return (s || "").toString().trim().toUpperCase();
+}
 
 function calcStockProyectado(stock, transito, reservado){
   return n(stock) + n(transito) - n(reservado);
@@ -59,23 +61,73 @@ function ensureUIStyles(){
     }
     select.dc-input option{ background:#0f1424; color:#eef0ff; }
 
-    /* Layout grid: table + right panel */
+    /* =========================
+       Layout grid: table + right panel (RESPONSIVE FIX)
+       ========================= */
+
+    /* ✅ minmax(0,1fr) evita que la tabla rompa el grid */
     .inv-grid{
       display:grid;
-      /* allow a variable drawer width, bigger by default */
-      grid-template-columns: 1fr auto var(--drawerW, 520px);
+      grid-template-columns: minmax(0, 1fr) auto clamp(320px, 32vw, var(--drawerW, 520px));
       gap: 14px;
       align-items:start;
     }
+
+    /* Drawer right panel */
+    .inv-drawer{
+      border-radius: 16px;
+      border:1px solid rgba(255,255,255,.10);
+      background: rgba(19,26,42,.70);
+      padding: 12px;
+      position: sticky;
+      top: 12px;
+
+      /* ✅ ancho flexible */
+      width: clamp(320px, 32vw, var(--drawerW, 520px));
+      min-width: 320px;
+      max-width: 920px;
+
+      height: calc(100vh - 120px);
+      overflow: auto;
+    }
+
+    /* ✅ breakpoint intermedio: reduce drawer para pantallas "normales" */
+    @media (max-width: 1400px){
+      .inv-grid{ grid-template-columns: minmax(0, 1fr) auto 420px; }
+      .inv-drawer{ width: 420px; min-width: 360px; }
+    }
+
+    /* ✅ en pantallas pequeñas: drawer abajo */
     @media (max-width: 1100px){
       .inv-grid{ grid-template-columns: 1fr; }
-      .inv-drawer{ position:relative; right:auto; top:auto; height:auto; }
+      .inv-drawer{
+        position:relative;
+        top:auto;
+        right:auto;
+        height:auto;
+        width:100%;
+        min-width: unset;
+        max-width: unset;
+      }
       .drawer-resizer{ display:none; }
     }
 
-    /* Table */
+    /* =========================
+       Table
+       ========================= */
     .dc-table-wrap{ overflow:auto; border-radius:14px; border:1px solid rgba(255,255,255,.08); }
-    .dc-table{ width:100%; border-collapse:separate; border-spacing:0; min-width:1100px; }
+
+    /* ✅ bajar min-width para que no empuje tanto */
+    .dc-table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      min-width: 980px; /* antes 1100 */
+    }
+    @media (max-width: 700px){
+      .dc-table{ min-width: 760px; }
+    }
+
     .dc-table th, .dc-table td{ padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); font-size:13px; white-space:nowrap; }
     .dc-table th{ position:sticky; top:0; background: rgba(15,20,36,.92); z-index:1; text-align:left; }
     .dc-row{ cursor:pointer; }
@@ -86,22 +138,6 @@ function ensureUIStyles(){
     .dc-mini{ padding:8px 10px; border-radius:10px; font-weight:800; }
 
     .dc-pill{ padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); display:inline-block; }
-
-    /* Drawer right panel */
-    .inv-drawer{
-      border-radius: 16px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(19,26,42,.70);
-      padding: 12px;
-      position: sticky;
-      top: 12px;
-      /* width control */
-      width: var(--drawerW, 520px);
-      min-width: 420px;
-      max-width: 920px;
-      height: calc(100vh - 120px);
-      overflow: auto;
-    }
 
     .drawer-resizer{ width:12px; cursor: col-resize; display:block; border-radius:8px; background:transparent; position:relative; }
     .drawer-resizer::before{ content:""; position:absolute; top:8px; bottom:8px; left:5px; width:2px; background: rgba(255,255,255,.06); border-radius:2px; }
@@ -127,6 +163,10 @@ function ensureUIStyles(){
       padding:8px 0;
       border-bottom:1px solid rgba(255,255,255,.06);
       font-size:12px;
+    }
+    @media (max-width: 520px){
+      .kv{ grid-template-columns: 1fr; }
+      .dc-input{ width:100%; }
     }
     .kv b{ color: rgba(238,240,255,.85); font-weight:800; }
     .kv span{ color: rgba(238,240,255,.78); }
@@ -158,6 +198,7 @@ function ensureUIStyles(){
   `;
   document.head.appendChild(s);
 }
+
 
 /* =========================
    TEMPLATE VISTA
@@ -231,8 +272,8 @@ function viewTemplate(){
    DATA
    ========================= */
 async function loadProductos(){
-  const qy = query(collection(db, "productos"), where("stock_proyectado", ">", 0));
-  const snap = await getDocs(qy);
+  // ✅ CAMBIO: cargar TODOS, no solo stock_proyectado > 0
+  const snap = await getDocs(collection(db, "productos"));
 
   const rows = [];
   snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
@@ -240,7 +281,6 @@ async function loadProductos(){
   state.rows = rows;
   state.filtered = rows;
 
-  // si no hay seleccionado, seleccionar el primero
   if (!state.selectedId && rows.length) state.selectedId = rows[0].id;
 }
 
@@ -271,7 +311,6 @@ function applyFilters(){
     return true;
   });
 
-  // si el seleccionado ya no está, seleccionar el primero filtrado
   if (state.selectedId && !state.filtered.some(x => x.id === state.selectedId)) {
     state.selectedId = state.filtered[0]?.id || null;
   }
@@ -313,10 +352,8 @@ function renderTable(){
     `;
   }).join("");
 
-  // seleccionar fila
   tb.querySelectorAll("[data-row]").forEach(row => {
     row.addEventListener("click", (ev) => {
-      // evitar conflicto si se hace clic en botones
       if (ev.target.closest("button")) return;
       state.selectedId = row.dataset.row;
       state.mode = "details";
@@ -381,7 +418,6 @@ function renderDrawer(){
     return;
   }
 
-  // details
   const foto = (r.foto_url && r.foto_url !== "SIN FOTO") ? r.foto_url : "";
   el.innerHTML = `
     ${drawerHeader("Detalle del producto", r.sku || r.categoria || "")}
@@ -493,7 +529,6 @@ function wireDrawerHeader(){
 }
 
 function wireDrawerForm(r){
-  // cargar datos si edita
   if (r) {
     $("#pNombre").value = r.nombre || "";
     $("#pCategoria").value = r.categoria || "";
@@ -513,14 +548,12 @@ function wireDrawerForm(r){
   }
 
   $("#btnCancelDrawer")?.addEventListener("click", () => {
-    // volver a detalle del seleccionado (o limpiar si estaba en nuevo)
     state.mode = state.selectedId ? "details" : "new";
     renderDrawer();
   });
 
   $("#drawerForm")?.addEventListener("submit", (ev) => onSave(ev, r));
 
-  // Autocomplete: Nombre, Categoria, Marca, Modelo
   setupAutocompleteFor("pNombre", "nombre");
   setupAutocompleteFor("pCategoria", "categoria");
   setupAutocompleteFor("pMarca", "marca");
@@ -544,7 +577,6 @@ function setupAutocompleteFor(inputId, key){
   const input = document.getElementById(inputId);
   if (!input) return;
 
-  // ensure wrapper exists (for absolute positioning)
   let wrap = input.closest('.dc-suggest-wrap');
   if (!wrap){
     wrap = document.createElement('div');
@@ -553,7 +585,6 @@ function setupAutocompleteFor(inputId, key){
     wrap.appendChild(input);
   }
 
-  // create suggestions container
   let sugg = wrap.querySelector('.suggestions');
   if (!sugg){
     sugg = document.createElement('div');
@@ -570,9 +601,8 @@ function setupAutocompleteFor(inputId, key){
     items = list.slice(0, 12);
     if (!items.length){ hide(); return; }
     sugg.innerHTML = items.map((v, i) => `<div class="suggestion-item" data-idx="${i}" data-val="${escapeHtml(v)}">${escapeHtml(v)}</div>`).join('');
-    // attach click
     sugg.querySelectorAll('.suggestion-item').forEach(it => it.addEventListener('mousedown', (ev)=>{
-      ev.preventDefault(); // prevent blur before click
+      ev.preventDefault();
       const val = it.dataset.val;
       input.value = val;
       input.dispatchEvent(new Event('input'));
@@ -628,7 +658,10 @@ function initResizer(container){
   const drawer = container.querySelector('#drawer');
   if (!resizer || !drawer) return;
 
-  // restore saved width
+  // Evitar listeners duplicados si esta vista se monta varias veces
+  if (container.dataset.resizerBound === "1") return;
+  container.dataset.resizerBound = "1";
+
   const saved = localStorage.getItem('dc_drawer_w');
   if (saved) document.documentElement.style.setProperty('--drawerW', saved + 'px');
 
@@ -638,7 +671,7 @@ function initResizer(container){
   let startW = 0;
 
   resizer.addEventListener('pointerdown', (ev) => {
-    if (window.innerWidth <= BREAK) return; // ignore on small screens
+    if (window.innerWidth <= BREAK) return;
     dragging = true;
     startX = ev.clientX;
     startW = drawer.getBoundingClientRect().width;
@@ -650,8 +683,7 @@ function initResizer(container){
   function onMove(ev){
     if (!dragging) return;
     const dx = ev.clientX - startX;
-    let newW = Math.round(startW + dx); // startW + dx
-    // clamp
+    let newW = Math.round(startW + dx);
     newW = Math.max(MIN, Math.min(MAX, newW));
     document.documentElement.style.setProperty('--drawerW', newW + 'px');
   }
@@ -668,16 +700,35 @@ function initResizer(container){
 
   document.addEventListener('pointermove', onMove);
   document.addEventListener('pointerup', stop);
-  window.addEventListener('resize', () => {
-    if (window.innerWidth <= BREAK) return;
+}
+
+/* =========================
+   DUPLICADOS
+   ========================= */
+async function existsExternalKey(external_key, excludeId = null){
+  // ✅ Previene duplicados por external_key (en MAYÚSCULAS)
+  const qy = query(
+    collection(db, "productos"),
+    where("external_key", "==", external_key),
+    limit(3)
+  );
+
+  const snap = await getDocs(qy);
+  let found = false;
+
+  snap.forEach(d => {
+    if (excludeId && d.id === excludeId) return;
+    found = true;
   });
+
+  return found;
 }
 
 /* =========================
    CRUD
    ========================= */
 async function uploadFoto(file, productoId){
-  if (!file) return null;
+  if (!file) return { url: null, path: null };
 
   if (!file.type.startsWith("image/")) throw new Error("El archivo no es una imagen");
 
@@ -685,14 +736,28 @@ async function uploadFoto(file, productoId){
   const path = `productos/${productoId}/${Date.now()}_${safeName}`;
   const rref = ref(storage, path);
 
-  const snap = await uploadBytes(rref, file, { contentType: file.type });
-  return await getDownloadURL(rref);
+  await uploadBytes(rref, file, { contentType: file.type });
+  const url = await getDownloadURL(rref);
+
+  return { url, path };
+}
+
+async function deleteFotoIfAny(foto_path){
+  if (!foto_path) return;
+  try {
+    const rref = ref(storage, foto_path);
+    await deleteObject(rref);
+  } catch (err) {
+    // si ya no existe, no reventar
+    console.warn("No se pudo borrar foto:", err?.message || err);
+  }
 }
 
 async function onSave(ev, currentRow){
   ev.preventDefault();
 
-  const nombre = $("#pNombre").value.trim();
+  // ✅ TODO EN MAYÚSCULAS
+  const nombre = normalize($("#pNombre").value);
   const categoria = normalize($("#pCategoria").value);
   const sku = normalize($("#pSku").value);
   const marca = normalize($("#pMarca").value);
@@ -714,7 +779,10 @@ async function onSave(ev, currentRow){
 
   const file = $("#pFoto").files?.[0] || null;
 
-  if (!nombre || !categoria) return alert("Nombre y Categoría son obligatorios.");
+  if (!nombre || !categoria) return alert("NOMBRE Y CATEGORÍA SON OBLIGATORIOS.");
+
+  // ✅ external_key normalizado y consistente
+  const external_key = `${nombre}|${condicion}`;
 
   const payload = {
     nombre,
@@ -733,24 +801,36 @@ async function onSave(ev, currentRow){
     garantia_meses,
     ubicacion,
     notas,
-    // clave primaria para link: nombre + '|' + condicion
-    external_key: `${nombre}|${condicion}`,
+    external_key,
     updated_at: serverTimestamp(),
   };
 
   // NUEVO
   if (state.mode === "new") {
+    const dup = await existsExternalKey(external_key);
+    if (dup) {
+      return alert(`YA EXISTE UN PRODUCTO CON LA MISMA CLAVE:\n${external_key}\n\nCAMBIA EL NOMBRE O LA CONDICIÓN.`);
+    }
+
     payload.created_at = serverTimestamp();
     payload.foto_url = "SIN FOTO";
+    payload.foto_path = ""; // ✅ nuevo campo
+
     const refDoc = await addDoc(collection(db, "productos"), payload);
 
     if (file) {
       try {
-        const url = await uploadFoto(file, refDoc.id);
-        if (url) await updateDoc(doc(db, "productos", refDoc.id), { foto_url: url, updated_at: serverTimestamp() });
+        const up = await uploadFoto(file, refDoc.id);
+        if (up?.url) {
+          await updateDoc(doc(db, "productos", refDoc.id), {
+            foto_url: up.url,
+            foto_path: up.path || "",
+            updated_at: serverTimestamp()
+          });
+        }
       } catch (err) {
         console.error(err);
-        alert("No se pudo subir la foto: " + (err?.message || err));
+        alert("NO SE PUDO SUBIR LA FOTO: " + (err?.message || err));
       }
     }
 
@@ -764,17 +844,31 @@ async function onSave(ev, currentRow){
   const id = currentRow?.id || state.selectedId;
   if (!id) return;
 
-  // mantener foto si no se cambia
+  const dup = await existsExternalKey(external_key, id);
+  if (dup) {
+    return alert(`YA EXISTE OTRO PRODUCTO CON LA MISMA CLAVE:\n${external_key}\n\nCAMBIA EL NOMBRE O LA CONDICIÓN.`);
+  }
+
   const current = state.rows.find(x => x.id === id);
-  const update = { ...payload, foto_url: current?.foto_url || "SIN FOTO" };
+  const update = {
+    ...payload,
+    foto_url: current?.foto_url || "SIN FOTO",
+    foto_path: current?.foto_path || "",
+  };
 
   if (file) {
     try {
-      const url = await uploadFoto(file, id);
-      if (url) update.foto_url = url;
+      // borrar foto anterior si existía
+      if (update.foto_path) await deleteFotoIfAny(update.foto_path);
+
+      const up = await uploadFoto(file, id);
+      if (up?.url) {
+        update.foto_url = up.url;
+        update.foto_path = up.path || "";
+      }
     } catch (err) {
       console.error(err);
-      alert("No se pudo subir la foto: " + (err?.message || err));
+      alert("NO SE PUDO SUBIR LA FOTO: " + (err?.message || err));
     }
   }
 
@@ -786,14 +880,18 @@ async function onSave(ev, currentRow){
 
 async function onDelete(id){
   const r = state.rows.find(x => x.id === id);
-  if (!confirm(`¿Eliminar "${r?.nombre || "producto"}"?`)) return;
+  if (!confirm(`¿ELIMINAR "${r?.nombre || "PRODUCTO"}"?`)) return;
+
+  // ✅ borrar foto storage si existe
+  if (r?.foto_path) {
+    await deleteFotoIfAny(r.foto_path);
+  }
 
   await deleteDoc(doc(db, "productos", id));
 
-  // seleccionar otro si el eliminado era el seleccionado
   if (state.selectedId === id) {
     state.selectedId = state.filtered.find(x => x.id !== id)?.id || null;
-    state.mode = state.selectedId ? "details" : "details";
+    state.mode = "details";
   }
 
   await refresh();
@@ -842,6 +940,5 @@ export async function mountInventarioGeneral(container){
   renderTable();
   renderDrawer();
 
-  // initialize resizer (allows adjusting drawer width)
   initResizer(container);
 }

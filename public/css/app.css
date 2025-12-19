@@ -341,3 +341,903 @@ select.dc-input option{
 }
 
 
+
+
+
+
+
+
+/* ===============================
+   THEME LIGHT PRO (OVERRIDES)
+   Sidebar + Topbar NEGRO
+   Contenido BLANCO
+   =============================== */
+
+:root{
+  --brand:#4f6fff;
+
+  /* neutrales */
+  --bg:#f6f7fb;          /* fondo general */
+  --surface:#ffffff;     /* tarjetas / paneles */
+  --surface2:#ffffff;    /* barras internas */
+  --text:#111827;        /* texto principal */
+  --muted:rgba(17,24,39,.65);
+  --stroke:rgba(17,24,39,.10);
+
+  /* sidebar/topbar dark */
+  --side:#0b0f1a;
+  --side2:#0f1424;
+  --sideText:rgba(255,255,255,.92);
+  --sideMuted:rgba(255,255,255,.65);
+  --sideStroke:rgba(255,255,255,.10);
+
+  --pill:rgba(79,111,255,.16);
+}
+
+/* Fondo general blanco */
+body{
+  background: var(--bg) !important;
+  color: var(--text) !important;
+}
+
+/* ========== SIDEBAR (NEGRO) ========== */
+.sidebar{
+  background: var(--side) !important;
+  border-right: 1px solid var(--sideStroke) !important;
+  backdrop-filter: none !important;
+}
+
+.sidebar-top{
+  border-bottom: 1px solid rgba(255,255,255,.06);
+  padding-bottom: 14px;
+}
+
+/* Marca */
+.brand-title{ color: var(--sideText) !important; }
+.brand-sub{ color: var(--sideMuted) !important; }
+
+/* Items */
+.menu-item, .submenu-item{
+  color: var(--sideMuted) !important;
+}
+
+.menu-item:hover, .submenu-item:hover{
+  background: rgba(255,255,255,.08) !important;
+  color: var(--sideText) !important;
+}
+
+.menu-item.active, .submenu-item.active{
+  background: rgba(79,111,255,.18) !important;
+  color: var(--sideText) !important;
+  border: 1px solid rgba(79,111,255,.30) !important;
+}
+
+/* Iconos en sidebar */
+.mi-icon{
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+}
+.mi-icon svg{ fill: rgba(255,255,255,.88) !important; }
+
+/* Submenu container */
+.menu-group .submenu{
+  border-left: 1px solid rgba(255,255,255,.08);
+  margin-left: 10px;
+  padding-left: 10px;
+}
+
+/* Logout */
+.menu-item.logout{
+  color: #ffb4b4 !important;
+}
+.menu-item.logout .mi-icon{
+  border-color: rgba(255,180,180,.35) !important;
+}
+
+/* Sidebar colapsado */
+.sidebar.collapsed .mi-icon{
+  background: transparent !important;
+  border:1px solid rgba(255,255,255,.18) !important;
+}
+
+/* ========== TOPBAR (NEGRO) ========== */
+.topbar{
+  background: var(--side) !important;
+  border-bottom: 1px solid var(--sideStroke) !important;
+  backdrop-filter: none !important;
+}
+
+.page-title{ color: var(--sideText) !important; }
+
+.icon-btn{
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+}
+.icon-btn svg{ fill: rgba(255,255,255,.90) !important; }
+.icon-btn:hover{ background: rgba(255,255,255,.10) !important; }
+
+.user-pill{
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  color: rgba(255,255,255,.90) !important;
+}
+.user-dot{
+  box-shadow: 0 0 0 6px rgba(79,111,255,.22) !important;
+}
+
+/* ========== CONTENT (BLANCO) ========== */
+.content{
+  padding: 18px;
+}
+
+/* tarjetas blancas */
+.card{
+  background: var(--surface) !important;
+  border: 1px solid var(--stroke) !important;
+  color: var(--text) !important;
+  box-shadow: 0 8px 24px rgba(17,24,39,.06);
+}
+
+/* Inputs en light theme */
+.dc-input{
+  background: #ffffff !important;
+  border: 1px solid rgba(17,24,39,.12) !important;
+  color: var(--text) !important;
+}
+.dc-input::placeholder{ color: rgba(17,24,39,.45) !important; }
+
+/* Select flecha en light */
+select.dc-input{
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='rgba(17,24,39,0.65)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+select.dc-input option{
+  background:#ffffff !important;
+  color:#111827 !important;
+}
+
+/* Botones */
+.dc-btn{
+  border:1px solid rgba(79,111,255,.28) !important;
+  background: rgba(79,111,255,.14) !important;
+  color:#111827 !important;
+}
+.dc-btn:hover{ background: rgba(79,111,255,.20) !important; }
+.dc-btn-ghost{
+  background:#ffffff !important;
+  border:1px solid rgba(17,24,39,.12) !important;
+  color:#111827 !important;
+}
+.dc-btn-ghost:hover{ background: rgba(17,24,39,.04) !important; }
+
+.dc-danger{
+  border-color: rgba(239,68,68,.30) !important;
+  background: rgba(239,68,68,.10) !important;
+  color:#111827 !important;
+}
+.dc-danger:hover{ background: rgba(239,68,68,.16) !important; }
+
+/* Tablas: look light */
+.dc-table-wrap{
+  border:1px solid rgba(17,24,39,.10) !important;
+  background:#fff !important;
+}
+.dc-table th{
+  background: #f3f4f6 !important;
+  color:#111827 !important;
+}
+.dc-table td{
+  color:#111827 !important;
+}
+.dc-row:hover{ background: rgba(17,24,39,.03) !important; }
+.dc-row.selected{
+  background: rgba(79,111,255,.10) !important;
+  outline: 1px solid rgba(79,111,255,.25) !important;
+}
+
+/* Drawer / panel derecho en light */
+.inv-drawer{
+  background: #ffffff !important;
+  border: 1px solid rgba(17,24,39,.10) !important;
+  color: #111827 !important;
+}
+
+/* Chips / pills */
+.chip, .dc-pill{
+  background: rgba(17,24,39,.04) !important;
+  border:1px solid rgba(17,24,39,.10) !important;
+  color:#111827 !important;
+}
+.drawer-title{ color:#111827 !important; }
+.drawer-sub{ color: rgba(17,24,39,.60) !important; }
+.kv b{ color: rgba(17,24,39,.85) !important; }
+.kv span{ color: rgba(17,24,39,.78) !important; }
+
+/* Preview img background */
+.preview-img{
+  background: rgba(17,24,39,.03) !important;
+  border: 1px solid rgba(17,24,39,.10) !important;
+}
+
+
+
+/* =========================================
+   SIDEBAR PRO (NEGRO + SUBMENÚ DIFERENCIADO)
+   Pegar al FINAL del app.css
+   ========================================= */
+
+:root{
+  --side:#0a0a0c;               /* negro real */
+  --side2:#0f1014;              /* negro secundario (submenú) */
+  --sideStroke: rgba(255,255,255,.10);
+  --sideStroke2: rgba(255,255,255,.08);
+  --sideText: rgba(255,255,255,.92);
+  --sideMuted: rgba(255,255,255,.62);
+  --sideHover: rgba(255,255,255,.07);
+  --sideActive: rgba(79,111,255,.22);
+}
+
+/* Sidebar base */
+.sidebar{
+  background: var(--side) !important;
+  border-right: 1px solid var(--sideStroke) !important;
+  backdrop-filter: none !important;
+  padding: 16px 12px !important;
+}
+
+/* Header/brand más limpio */
+.sidebar-top{
+  padding: 6px 6px 14px !important;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  margin-bottom: 10px;
+}
+
+.brand{ gap:12px !important; }
+.brand-icon{
+  width:42px !important; height:42px !important;
+  border-radius:12px !important;
+  background: linear-gradient(135deg, rgba(79,111,255,1), rgba(79,111,255,.55)) !important;
+  color:#0a0a0c !important;
+  font-weight: 900 !important;
+}
+.brand-title{
+  color: var(--sideText) !important;
+  font-size: 12px !important;
+  letter-spacing: .9px !important;
+}
+.brand-sub{
+  color: var(--sideMuted) !important;
+  font-size: 10px !important;
+}
+
+/* Items */
+.menu{
+  gap: 6px !important;
+  padding: 8px 6px !important;
+}
+
+.menu-item, .submenu-item{
+  border-radius: 12px !important;
+  padding: 11px 12px !important;
+  color: var(--sideMuted) !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+}
+
+/* Hover */
+.menu-item:hover, .submenu-item:hover{
+  background: var(--sideHover) !important;
+  color: var(--sideText) !important;
+  border-color: rgba(255,255,255,.06) !important;
+}
+
+/* Activo */
+.menu-item.active, .submenu-item.active{
+  background: var(--sideActive) !important;
+  color: var(--sideText) !important;
+  border-color: rgba(79,111,255,.35) !important;
+}
+
+/* Iconos MÁS profesionales:
+   - contenedor más sobrio
+   - menos “burbuja”
+   - borde fino
+*/
+.mi-icon{
+  width:28px !important;
+  height:28px !important;
+  border-radius:10px !important;
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  display:grid !important;
+  place-items:center !important;
+}
+
+/* SVG icon */
+.mi-icon svg{
+  width:16px !important; height:16px !important;
+  fill: rgba(255,255,255,.88) !important;
+}
+
+/* Hover/Active icon container */
+.menu-item:hover .mi-icon,
+.submenu-item:hover .mi-icon{
+  background: rgba(255,255,255,.08) !important;
+  border-color: rgba(255,255,255,.14) !important;
+}
+
+.menu-item.active .mi-icon,
+.submenu-item.active .mi-icon{
+  background: rgba(79,111,255,.22) !important;
+  border-color: rgba(79,111,255,.40) !important;
+}
+
+/* Flecha del submenu (chev) */
+.chev{
+  opacity: .7 !important;
+  color: rgba(255,255,255,.65) !important;
+}
+
+/* === SUBMENÚ DIFERENCIADO === */
+.menu-group .submenu{
+  display:none;
+  flex-direction:column;
+  gap: 6px;
+  padding: 10px 10px 10px 12px !important;
+  margin: 6px 0 8px 38px !important;  /* indent real (se nota que es hijo) */
+
+  /* Caja propia */
+  background: var(--side2) !important;
+  border: 1px solid var(--sideStroke2) !important;
+  border-radius: 14px !important;
+}
+
+/* Subitems más compactos */
+.submenu-item{
+  padding: 9px 10px !important;
+  border-radius: 10px !important;
+}
+
+/* Icono del subitem un poco más pequeño */
+.submenu .mi-icon{
+  width:24px !important;
+  height:24px !important;
+  border-radius: 8px !important;
+  background: rgba(255,255,255,.03) !important;
+}
+
+/* Separador visual suave entre secciones (opcional) */
+.menu-group{
+  padding-top: 2px;
+}
+
+/* Logout fijo abajo, sobrio */
+.menu-item.logout{
+  margin-top:auto !important;
+  color: rgba(255,180,180,.95) !important;
+}
+.menu-item.logout:hover{
+  background: rgba(255,120,120,.10) !important;
+  border-color: rgba(255,120,120,.18) !important;
+}
+.menu-item.logout .mi-icon{
+  border-color: rgba(255,180,180,.28) !important;
+  background: rgba(255,120,120,.08) !important;
+}
+.menu-item.logout .mi-icon svg{
+  fill: rgba(255,210,210,.95) !important;
+}
+
+/* Collapsed: mantiene look pro */
+.sidebar.collapsed{
+  width: 86px;
+}
+.sidebar.collapsed .menu{ padding: 8px 4px !important; }
+.sidebar.collapsed .menu-item,
+.sidebar.collapsed .submenu-item{
+  justify-content:center !important;
+  padding: 12px 8px !important;
+}
+.sidebar.collapsed .mi-icon{
+  background: transparent !important;
+  border: 1px solid rgba(255,255,255,.18) !important;
+}
+.sidebar.collapsed .menu-item:hover .mi-icon{
+  background: rgba(255,255,255,.08) !important;
+}
+.sidebar.collapsed .menu-group .submenu{
+  display:none !important;
+}
+
+/* =========================================================
+   MENU TIPO "ARBOL" (como tu ejemplo) + NEGRO
+   Pegar AL FINAL de app.css
+   ========================================================= */
+
+:root{
+  --sb-bg: #07080a;
+  --sb-bg2:#0b0d11;
+  --sb-stroke: rgba(255,255,255,.10);
+  --sb-muted: rgba(255,255,255,.65);
+  --sb-text: rgba(255,255,255,.92);
+  --sb-hover: rgba(255,255,255,.07);
+  --sb-active: rgba(79,111,255,.24);
+  --sb-tree: rgba(255,255,255,.14); /* lineas del arbol */
+}
+
+/* Sidebar negro real */
+.sidebar{
+  background: var(--sb-bg) !important;
+  border-right: 1px solid var(--sb-stroke) !important;
+  backdrop-filter: none !important;
+}
+
+/* Brand */
+.sidebar-top{
+  border-bottom: 1px solid rgba(255,255,255,.08);
+  margin-bottom: 10px;
+}
+
+/* Items base */
+.menu-item, .submenu-item{
+  color: var(--sb-muted) !important;
+  border: 1px solid transparent !important;
+  background: transparent !important;
+  border-radius: 12px !important;
+}
+
+/* Hover */
+.menu-item:hover, .submenu-item:hover{
+  background: var(--sb-hover) !important;
+  color: var(--sb-text) !important;
+}
+
+/* Activo */
+.menu-item.active, .submenu-item.active{
+  background: var(--sb-active) !important;
+  color: var(--sb-text) !important;
+  border-color: rgba(79,111,255,.35) !important;
+}
+
+/* Iconos más sobrios */
+.mi-icon{
+  background: rgba(255,255,255,.04) !important;
+  border: 1px solid rgba(255,255,255,.12) !important;
+  border-radius: 10px !important;
+}
+.mi-icon svg{ fill: rgba(255,255,255,.88) !important; }
+
+/* ---------------------------------------------------------
+   SUBMENU "ARBOL" (línea vertical + ramitas)
+   --------------------------------------------------------- */
+
+.menu-group{ position: relative; }
+
+/* Indent + linea vertical del arbol */
+.menu-group .submenu{
+  display: none;                 /* tu JS lo controla */
+  flex-direction: column;
+  gap: 6px;
+
+  /* Quitamos la "caja" que te puse antes */
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+
+  /* indent real para que se vea como hijo */
+  margin: 8px 0 10px 44px !important;
+  padding: 6px 0 6px 18px !important;
+
+  position: relative;
+}
+
+/* linea vertical */
+.menu-group .submenu::before{
+  content:"";
+  position:absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: var(--sb-tree);
+  border-radius: 2px;
+}
+
+/* cada subitem: ramita horizontal */
+.menu-group .submenu .submenu-item{
+  position: relative;
+  padding: 10px 10px !important;
+  border-radius: 12px !important;
+}
+
+/* ramita */
+.menu-group .submenu .submenu-item::before{
+  content:"";
+  position:absolute;
+  left: -12px;
+  top: 50%;
+  width: 14px;
+  height: 2px;
+  background: var(--sb-tree);
+  transform: translateY(-50%);
+  border-radius: 2px;
+}
+
+/* subitems: fondo suave solo al hover/active */
+.menu-group .submenu .submenu-item:hover{
+  background: rgba(255,255,255,.06) !important;
+}
+.menu-group .submenu .submenu-item.active{
+  background: rgba(79,111,255,.18) !important;
+  border-color: rgba(79,111,255,.25) !important;
+}
+
+/* Icono del subitem un poco más discreto */
+.menu-group .submenu .mi-icon{
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 8px !important;
+  background: rgba(255,255,255,.03) !important;
+  border-color: rgba(255,255,255,.10) !important;
+}
+.menu-group .submenu .mi-icon svg{
+  width: 14px !important;
+  height: 14px !important;
+}
+
+/* ---------------------------------------------------------
+   Colapsado: oculta submenus (tu JS ya lo hace), tooltips ok
+   --------------------------------------------------------- */
+.sidebar.collapsed .menu-group .submenu{
+  display:none !important;
+}
+
+/* Logout */
+.menu-item.logout{
+  color: rgba(255,180,180,.95) !important;
+}
+.menu-item.logout:hover{
+  background: rgba(255,120,120,.10) !important;
+}
+
+
+:root{
+  --brand:#4f6fff;
+
+  /* Tema pro: sidebar negro + main claro */
+  --sidebar:#0b0c10;
+  --sidebar2:#111218;
+  --sidebarStroke: rgba(255,255,255,.08);
+
+  --mainBg:#f5f7fb;
+  --mainText:#0f172a;
+  --mainMuted:#475569;
+
+  --card:#ffffff;
+  --cardStroke: rgba(15,23,42,.10);
+}
+
+/* Fondo general claro */
+body{
+  background: var(--mainBg) !important;
+  color: var(--mainText) !important;
+}
+
+/* Sidebar negro */
+.sidebar{
+  background: linear-gradient(180deg, var(--sidebar), #08090c) !important;
+  border-right: 1px solid var(--sidebarStroke) !important;
+  backdrop-filter: none !important;
+}
+
+/* Topbar negro como sidebar */
+.topbar{
+  background: linear-gradient(180deg, var(--sidebar2), var(--sidebar)) !important;
+  border-bottom: 1px solid var(--sidebarStroke) !important;
+  backdrop-filter: none !important;
+}
+.topbar .page-title{ color: #fff !important; }
+.icon-btn{
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+}
+.icon-btn svg{ fill: rgba(255,255,255,.88) !important; }
+.user-pill{
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  color: rgba(255,255,255,.92) !important;
+}
+
+/* Contenido cards claras */
+.content .card{
+  background: var(--card) !important;
+  border: 1px solid var(--cardStroke) !important;
+  color: var(--mainText) !important;
+}
+
+/* Menu items */
+.menu-item, .submenu-item{
+  color: rgba(255,255,255,.75) !important;
+}
+.menu-item:hover, .submenu-item:hover{
+  background: rgba(255,255,255,.06) !important;
+  color: #fff !important;
+}
+
+/* Ícono: cuadrado pro */
+.mi-icon{
+  background: rgba(255,255,255,.06) !important;
+  border: 1px solid rgba(255,255,255,.10) !important;
+  color: rgba(255,255,255,.88) !important;
+}
+.menu-item.active, .submenu-item.active{
+  background: rgba(79,111,255,.18) !important;
+  border: 1px solid rgba(79,111,255,.30) !important;
+  color: #fff !important;
+}
+.menu-item.active .mi-icon, .submenu-item.active .mi-icon{
+  background: rgba(79,111,255,.22) !important;
+  border-color: rgba(79,111,255,.35) !important;
+}
+
+/* Flecha chevron como material icon */
+.chev.material-symbols-rounded{
+  margin-left:auto;
+  opacity:.7;
+  font-size: 20px;
+  transition: transform .18s ease;
+}
+
+/* Rotación cuando submenu se abre (layout.js pone display:flex) */
+.menu-group .submenu[style*="flex"] ~ * {}
+.menu-item.has-sub.open .chev{ transform: rotate(90deg); } /* por si luego agregas clase */
+
+/* Submenu MUY diferenciado (como el ejemplo) */
+.menu-group .submenu{
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 14px;
+  padding: 10px;
+  margin: 6px 6px 10px 40px;  /* indent */
+  gap: 8px !important;
+}
+
+/* Subitems más “finos” */
+.submenu-item{
+  padding: 10px 10px !important;
+  border-radius: 12px !important;
+}
+
+/* Logo */
+.brand-title, .brand-sub{ color: rgba(255,255,255,.92) !important; }
+.brand-sub{ color: rgba(255,255,255,.65) !important; }
+
+/* Logout */
+.menu-item.logout{
+  color: rgba(255,160,160,.95) !important;
+}
+.menu-item.logout:hover{
+  background: rgba(255,80,80,.12) !important;
+}
+.menu-item.logout .mi-icon{
+  border-color: rgba(255,120,120,.28) !important;
+  background: rgba(255,120,120,.10) !important;
+}
+
+/* Collapsed sidebar */
+.sidebar.collapsed{
+  background: linear-gradient(180deg, var(--sidebar), #07080b) !important;
+}
+.sidebar.collapsed .mi-icon{
+  background: rgba(255,255,255,.04) !important;
+  border-color: rgba(255,255,255,.10) !important;
+}
+
+
+/* ===============================
+   TOPBAR CLARA (PROFESIONAL)
+   =============================== */
+
+.topbar{
+  height: 64px;
+  background: #ffffff !important;        /* blanco limpio */
+  border-bottom: 1px solid #e5e7eb;       /* línea divisoria sutil */
+  box-shadow: none;                       /* sin sombra pesada */
+  backdrop-filter: none !important;
+}
+
+/* Título */
+.topbar .page-title{
+  color: #0f172a !important;              /* gris oscuro profesional */
+  font-weight: 700;
+}
+
+/* Botones icono */
+.topbar .icon-btn{
+  background: #f8fafc !important;
+  border: 1px solid #e5e7eb !important;
+}
+
+.topbar .icon-btn svg{
+  fill: #334155 !important;               /* slate */
+}
+
+.topbar .icon-btn:hover{
+  background: #f1f5f9 !important;
+}
+
+/* User pill */
+.topbar .user-pill{
+  background: #f8fafc !important;
+  border: 1px solid #e5e7eb !important;
+  color: #0f172a !important;
+}
+
+.topbar .user-dot{
+  background: var(--brand) !important;
+  box-shadow: 0 0 0 4px rgba(79,111,255,.15);
+}
+
+/* ===============================
+   CONTENIDO GENERAL
+   =============================== */
+
+.content{
+  background: #f6f7fb;   /* fondo claro del panel principal */
+}
+
+/* ===============================
+   COMPACT MODE (UI más densa)
+   Pegar al final de app.css
+   =============================== */
+
+/* Base typography */
+:root{
+  --fs-xxs: 11px;
+  --fs-xs: 12px;
+  --fs-sm: 13px;
+  --fs-md: 14px;
+
+  --radius-sm: 10px;
+  --radius-md: 12px;
+}
+
+/* body: texto base más pequeño */
+body{
+  font-size: var(--fs-sm);
+}
+
+/* ===== SIDEBAR ===== */
+.sidebar{
+  width: 248px;                 /* antes 280 */
+  padding: 12px 10px;           /* menos padding */
+}
+
+.sidebar-top{ padding: 4px 4px 10px; }
+
+.brand-icon{
+  width: 38px; height: 38px;    /* antes 44 */
+  border-radius: 12px;
+  font-size: 13px;
+}
+
+.brand-title{ font-size: 11px; letter-spacing: .6px; }
+.brand-sub{ font-size: 9px; }
+
+.menu{ gap: 4px; padding: 4px; }
+
+.menu-item, .submenu-item{
+  padding: 9px 10px;            /* antes 10px 10px */
+  border-radius: 10px;          /* antes 12 */
+  font-size: 13px;
+  gap: 10px;
+}
+
+/* Icon container más pequeño */
+.mi-icon{
+  width: 24px !important;       /* antes 26-28 */
+  height: 24px !important;
+  border-radius: 9px !important;
+}
+.mi-icon svg{
+  width: 15px;
+  height: 15px;
+}
+
+/* Submenu: más compacto y claramente indentado */
+.menu-group .submenu{
+  padding: 6px 0 6px 12px;      /* indent */
+  gap: 4px;
+}
+.submenu .mi-icon{
+  width: 22px !important;
+  height: 22px !important;
+  border-radius: 8px !important;
+}
+
+/* Collapsed sidebar más angosto */
+.sidebar.collapsed{
+  width: 74px;                  /* antes 86 */
+}
+.sidebar.collapsed .menu-item,
+.sidebar.collapsed .submenu-item{
+  padding: 10px 8px;
+}
+
+/* ===== TOPBAR ===== */
+.topbar{
+  height: 56px;                 /* antes 64 */
+  padding: 0 14px;
+}
+.page-title{
+  font-size: 16px;              /* antes 18 */
+}
+.icon-btn{
+  width: 36px; height: 36px;    /* antes 40 */
+  border-radius: 12px;
+}
+.icon-btn svg{ width: 17px; height: 17px; }
+
+.user-pill{
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+/* ===== CONTENT spacing ===== */
+.content{ padding: 14px; }      /* antes 18 */
+.card{
+  border-radius: 14px;
+  padding: 14px;
+}
+
+/* ===== Inputs / buttons global ===== */
+.dc-input{
+  padding: 9px 10px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+}
+.dc-btn{
+  padding: 9px 12px !important;
+  border-radius: 10px !important;
+  font-size: 13px !important;
+}
+
+/* ===== Tablas (inventario/compras) ===== */
+.dc-table th, .dc-table td{
+  padding: 8px 10px !important;
+  font-size: 12px !important;
+}
+.dc-table{
+  min-width: 980px;             /* antes 1100-1250 */
+}
+
+/* Drawer/panel derecho un poco más compacto */
+.inv-drawer{
+  width: var(--drawerW, 460px) !important;  /* antes 520 */
+  min-width: 360px !important;              /* antes 420 */
+  border-radius: 14px;
+  padding: 10px;
+}
+.drawer-title{ font-size: 13px; }
+.drawer-sub{ font-size: 11px; }
+
+.kv{
+  grid-template-columns: 112px 1fr !important;
+  font-size: 11.5px !important;
+  padding: 7px 0 !important;
+}
+
+/* Chips */
+.chip{
+  padding: 5px 9px !important;
+  font-size: 11.5px !important;
+}
+
+/* Responsive: en pantallas pequeñas, sidebar más angosta */
+@media (max-width: 1100px){
+  .sidebar{ width: 220px; }
+}
+
+
+
+
+
