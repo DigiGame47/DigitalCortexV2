@@ -1363,6 +1363,9 @@ async function refresh(){
 }
 
 export async function mountComprasGeneral(container){
+  // Limpiar el contenedor completamente
+  container.innerHTML = "";
+  
   ensureUIStyles();
   container.innerHTML = viewTemplate();
 
@@ -1379,4 +1382,12 @@ export async function mountComprasGeneral(container){
   renderDrawer();
 
   initResizer(container);
+}
+
+export async function mountComprasRecepcion(container){
+  await mountComprasGeneral(container);
+}
+
+export async function mountComprasSeguimiento(container){
+  await mountComprasGeneral(container);
 }

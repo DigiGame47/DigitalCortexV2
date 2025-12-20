@@ -5,14 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>DigitalCortex</title>
   <link rel="stylesheet" href="/css/app.css" />
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0" rel="stylesheet">
-
-
-
-
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0" rel="stylesheet">
 </head>
-<body>
 
+<body>
 <div class="app-layout">
 
   <!-- SIDEBAR -->
@@ -27,111 +23,106 @@
       </div>
     </div>
 
-    
-
-
     <nav class="menu" id="menu">
-  <a class="menu-item active" data-title="Dashboard" data-key="dashboard">
-    <span class="mi-icon"><span class="material-symbols-rounded">dashboard</span></span>
-    <span class="mi-text">Dashboard</span>
-  </a>
-
-  <!-- Ventas -->
-  <div class="menu-group">
-    <div class="menu-item has-sub" data-title="Ventas" data-key="ventas">
-      <span class="mi-icon"><span class="material-symbols-rounded">shopping_cart</span></span>
-      <span class="mi-text">Ventas</span>
-      <span class="chev material-symbols-rounded">chevron_right</span>
-    </div>
-
-    <div class="submenu">
-      <a class="submenu-item" data-title="Pedidos" data-key="ventas_pedidos">
-        <span class="mi-icon"><span class="material-symbols-rounded">receipt_long</span></span>
-        <span class="mi-text">Pedidos</span>
+      <a class="menu-item active" data-title="Dashboard" data-key="dashboard">
+        <span class="mi-icon"><span class="material-symbols-rounded">dashboard</span></span>
+        <span class="mi-text">Dashboard</span>
       </a>
 
-      <a class="submenu-item" data-title="Liquidaciones" data-key="ventas_liquidaciones">
-        <span class="mi-icon"><span class="material-symbols-rounded">payments</span></span>
-        <span class="mi-text">Liquidaciones</span>
+      <!-- Ventas -->
+      <div class="menu-group">
+        <div class="menu-item has-sub" data-title="Ventas" data-key="ventas">
+          <span class="mi-icon"><span class="material-symbols-rounded">shopping_cart</span></span>
+          <span class="mi-text">Ventas</span>
+          <span class="chev material-symbols-rounded">chevron_right</span>
+        </div>
+
+        <div class="submenu">
+          <a class="submenu-item" data-title="Pedidos" data-key="ventas_pedidos">
+            <span class="mi-icon"><span class="material-symbols-rounded">receipt_long</span></span>
+            <span class="mi-text">Pedidos</span>
+          </a>
+
+          <a class="submenu-item" data-title="Liquidaciones" data-key="ventas_liquidaciones">
+            <span class="mi-icon"><span class="material-symbols-rounded">payments</span></span>
+            <span class="mi-text">Liquidaciones</span>
+          </a>
+
+          <a class="submenu-item" data-title="Devoluciones" data-key="ventas_devoluciones">
+            <span class="mi-icon"><span class="material-symbols-rounded">assignment_return</span></span>
+            <span class="mi-text">Devoluciones</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Compras -->
+      <div class="menu-group">
+        <div class="menu-item has-sub" data-title="Compras" data-key="compras">
+          <span class="mi-icon"><span class="material-symbols-rounded">inventory_2</span></span>
+          <span class="mi-text">Compras</span>
+          <span class="chev material-symbols-rounded">chevron_right</span>
+        </div>
+
+        <div class="submenu">
+          <a class="submenu-item" data-title="Seguimiento de compras" data-key="compras_seguimiento">
+            <span class="mi-icon"><span class="material-symbols-rounded">local_shipping</span></span>
+            <span class="mi-text">Seguimiento</span>
+          </a>
+
+          <a class="submenu-item" data-title="Recepción de órdenes" data-key="compras_recepcion">
+            <span class="mi-icon"><span class="material-symbols-rounded">fact_check</span></span>
+            <span class="mi-text">Recepción</span>
+          </a>
+        </div>
+      </div>
+
+      <!-- Inventario -->
+      <div class="menu-group">
+        <div class="menu-item has-sub" data-title="Inventario" data-key="inventario">
+          <span class="mi-icon"><span class="material-symbols-rounded">warehouse</span></span>
+          <span class="mi-text">Inventario</span>
+          <span class="chev material-symbols-rounded">chevron_right</span>
+        </div>
+
+        <div class="submenu">
+          <a class="submenu-item" data-title="Vista general" data-key="inventario_general">
+            <span class="mi-icon"><span class="material-symbols-rounded">grid_view</span></span>
+            <span class="mi-text">Vista general</span>
+          </a>
+          <a class="submenu-item" data-title="Categorías" data-key="inventario_categorias">
+            <span class="mi-icon"><span class="material-symbols-rounded">category</span></span>
+            <span class="mi-text">Categorías</span>
+          </a>
+        </div>
+      </div>
+
+      <a class="menu-item" data-title="Finanzas" data-key="finanzas">
+        <span class="mi-icon"><span class="material-symbols-rounded">bar_chart</span></span>
+        <span class="mi-text">Finanzas</span>
       </a>
 
-      <a class="submenu-item" data-title="Devoluciones" data-key="ventas_devoluciones">
-        <span class="mi-icon"><span class="material-symbols-rounded">assignment_return</span></span>
-        <span class="mi-text">Devoluciones</span>
-      </a>
-    </div>
-  </div>
-
-  <!-- Compras -->
-  <div class="menu-group">
-    <div class="menu-item has-sub" data-title="Compras" data-key="compras">
-      <span class="mi-icon"><span class="material-symbols-rounded">inventory_2</span></span>
-      <span class="mi-text">Compras</span>
-      <span class="chev material-symbols-rounded">chevron_right</span>
-    </div>
-
-    <div class="submenu">
-      <a class="submenu-item" data-title="Seguimiento de compras" data-key="compras_seguimiento">
-        <span class="mi-icon"><span class="material-symbols-rounded">local_shipping</span></span>
-        <span class="mi-text">Seguimiento de compras</span>
+      <a class="menu-item" data-title="Campañas" data-key="campanas">
+        <span class="mi-icon"><span class="material-symbols-rounded">campaign</span></span>
+        <span class="mi-text">Campañas</span>
       </a>
 
-      <a class="submenu-item" data-title="Recepción de órdenes" data-key="compras_recepcion">
-        <span class="mi-icon"><span class="material-symbols-rounded">fact_check</span></span>
-        <span class="mi-text">Recepción de órdenes</span>
+      <a class="menu-item" data-title="Ajustes" data-key="ajustes">
+        <span class="mi-icon"><span class="material-symbols-rounded">settings</span></span>
+        <span class="mi-text">Ajustes</span>
       </a>
-    </div>
-  </div>
 
-  <!-- Inventario -->
-  <div class="menu-group">
-    <div class="menu-item has-sub" data-title="Inventario" data-key="inventario">
-      <span class="mi-icon"><span class="material-symbols-rounded">warehouse</span></span>
-      <span class="mi-text">Inventario</span>
-      <span class="chev material-symbols-rounded">chevron_right</span>
-    </div>
-
-    <div class="submenu">
-      <a class="submenu-item" data-title="Vista general" data-key="inventario_general">
-        <span class="mi-icon"><span class="material-symbols-rounded">grid_view</span></span>
-        <span class="mi-text">Vista general</span>
+      <!-- salir al fondo -->
+      <a class="menu-item logout" id="btnLogout" data-title="Salir" data-key="salir">
+        <span class="mi-icon"><span class="material-symbols-rounded">logout</span></span>
+        <span class="mi-text">Salir</span>
       </a>
-      <a class="submenu-item" data-title="Categorías" data-key="inventario_categorias">
-        <span class="mi-icon"><span class="material-symbols-rounded">category</span></span>
-        <span class="mi-text">Categorías</span>
-      </a>
-    </div>
-  </div>
-
-  <a class="menu-item" data-title="Finanzas" data-key="finanzas">
-    <span class="mi-icon"><span class="material-symbols-rounded">bar_chart</span></span>
-    <span class="mi-text">Finanzas</span>
-  </a>
-
-  <a class="menu-item" data-title="Campañas" data-key="campanas">
-    <span class="mi-icon"><span class="material-symbols-rounded">campaign</span></span>
-    <span class="mi-text">Campañas</span>
-  </a>
-
-  <a class="menu-item" data-title="Ajustes" data-key="ajustes">
-    <span class="mi-icon"><span class="material-symbols-rounded">settings</span></span>
-    <span class="mi-text">Ajustes</span>
-  </a>
-
-  <!-- salir al fondo -->
-  <a class="menu-item logout" id="btnLogout" data-title="Salir" data-key="salir">
-    <span class="mi-icon"><span class="material-symbols-rounded">logout</span></span>
-    <span class="mi-text">Salir</span>
-  </a>
-</nav>
-
+    </nav>
   </aside>
 
   <!-- MAIN -->
   <div class="main">
     <header class="topbar">
       <button class="icon-btn" id="btnToggleSidebar" title="Ocultar menú">
-        <!-- hamburger -->
         <svg viewBox="0 0 24 24"><path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z"/></svg>
       </button>
 
@@ -153,14 +144,14 @@
       </div>
     </header>
 
-<section class="content">
-  <div id="viewContainer"></div>
-</section>
-
+    <section class="content">
+      <div id="viewContainer"></div>
+    </section>
   </div>
 
 </div>
 
+<!-- Sidebar behavior -->
 <script src="/js/layout.js"></script>
 
 <script type="module">
@@ -168,75 +159,88 @@
 
   console.log('[app] main module init');
 
-  // Cargar compras.js dinámico sin bloquear la app
-  let mountComprasRecepcion = null;
-  let mountComprasSeguimiento = null;
-
-  (async ()=>{
-    try{
-      const mod = await import('/js/compras.js');
-
-      // ✅ usamos el export real del archivo compras.js
-      mountComprasSeguimiento = mod.mountComprasGeneral;
-
-      // por ahora, recepción puede apuntar al mismo (hasta que hagamos pantalla separada)
-      mountComprasRecepcion = mod.mountComprasGeneral;
-
-      console.log('[app] compras module loaded');
-    }catch(e){
-      console.error('Failed to load compras module', e);
-      mountComprasRecepcion = async (container)=> {
-        container.innerHTML = `<div class="card" style="padding:14px;"><b>Error cargando módulo Compras:</b> ${e.message}</div>`;
-      };
-      mountComprasSeguimiento = mountComprasRecepcion;
+  // ==========================
+  // COMPRAS: carga on-demand (caché)
+  // ==========================
+  let _comprasModulePromise = null;
+  async function loadComprasModule(){
+    if(!_comprasModulePromise){
+      _comprasModulePromise = import('/js/compras.js');
     }
-  })();
+    return _comprasModulePromise;
+  }
 
+  // ==========================
+  // VENTAS: carga on-demand (caché)
+  // ==========================
+  let _ventasModulePromise = null;
+  async function loadVentasModule(){
+    if(!_ventasModulePromise){
+      _ventasModulePromise = import('/js/ventas.js');
+    }
+    return _ventasModulePromise;
+  }
+
+
+  // ==========================
+  // Router simple
+  // ==========================
   window.DC = {
-    openView: async (key, title) => {
-      document.getElementById("pageTitle").textContent = title || "Vista";
-      const container = document.getElementById("viewContainer");
-      if (!container) return;
+  openView: async (key, title) => {
+    document.getElementById("pageTitle").textContent = title || "Vista";
+    const container = document.getElementById("viewContainer");
+    if (!container) return;
 
-      try{
-        switch (key) {
-          case "inventario_general":
-            await mountInventarioGeneral(container);
-            break;
+    try {
+      switch (key) {
+        // Inventario
+        case "inventario_general":
+          await mountInventarioGeneral(container);
+          break;
 
-          case "compras_recepcion":
-            await (mountComprasRecepcion || (async (c)=>{ c.innerHTML = `<div class="card">Cargando módulo Compras...</div>`; }))(container);
-            break;
+        // Compras
+        case "compras_recepcion":
+          container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Compras...</div>`;
+          const modComprasRec = await loadComprasModule();
+          if (!modComprasRec.mountComprasRecepcion) throw new Error("compras.js no exporta mountComprasRecepcion");
+          await modComprasRec.mountComprasRecepcion(container);
+          break;
 
-          case "compras_seguimiento":
-            await (mountComprasSeguimiento || (async (c)=>{ c.innerHTML = `<div class="card">Cargando módulo Compras...</div>`; }))(container);
-            break;
+        case "compras_seguimiento":
+          container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Compras...</div>`;
+          const modCompraSeg = await loadComprasModule();
+          if (!modCompraSeg.mountComprasSeguimiento) throw new Error("compras.js no exporta mountComprasSeguimiento");
+          await modCompraSeg.mountComprasSeguimiento(container);
+          break;
 
-          default:
-            container.innerHTML = `
-              <div class="card" style="padding:14px;">
-                Vista en construcción: <b>${title || key}</b>
-              </div>
-            `;
-        }
-      }catch(e){
-        console.error('Error al abrir vista', key, e);
-        container.innerHTML = `<div class="card" style="padding:14px;"><b>Error cargando la vista:</b> ${e.message || e}</div>`;
+        // Ventas (3 vistas → mismo mount)
+        case "ventas_pedidos":
+        case "ventas_liquidaciones":
+        case "ventas_devoluciones":
+          container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Ventas...</div>`;
+          const modVentas = await loadVentasModule();
+          if (!modVentas.mountVentas) throw new Error("ventas.js no exporta mountVentas");
+          await modVentas.mountVentas(container);
+          break;
+
+        default:
+          container.innerHTML = `
+            <div class="card" style="padding:14px;">
+              Vista en construcción: <b>${title || key}</b>
+            </div>`;
       }
+    } catch (e) {
+      console.error("Error al abrir vista", key, e);
+      container.innerHTML = `
+        <div class="card" style="padding:14px;">
+          <b>Error cargando la vista:</b> ${e.message || e}
+        </div>`;
     }
-  };
+  }
+};
 
   window.DC.openView("dashboard", "Dashboard");
 </script>
 
-
-
-
-<!-- Si ya tienes guard.js con Firebase auth, úsalo aquí (opcional):
-<script type="module">
-  import { requireAuth, wireLogout } from "/js/guard.js";
-  requireAuth(); wireLogout();
-</script>
--->
 </body>
 </html>

@@ -199,17 +199,33 @@ body{
    ICONO CONTENEDOR (SIDEBAR)
    =============================== */
 
+/* ===============================
+   ICONOS SIDEBAR – ESTILO LIMPIO
+   =============================== */
+
 .mi-icon{
-  width:28px;
-  height:28px;
-  display:grid;
-  place-items:center;
-  border-radius:10px;
-  background: rgba(255,255,255,.04);
-  border:1px solid rgba(255,255,255,.08);
-  color: rgba(238,240,255,.85);
-  transition: all .15s ease;
+  width:22px;
+  height:22px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+
+  /* ❌ sin caja */
+  background: none;
+  border: none;
+  border-radius: 0;
+
+  color: rgba(255,255,255,.70);
+  transition: color .15s ease, transform .15s ease;
 }
+
+/* SVG */
+.mi-icon svg{
+  width:20px;
+  height:20px;
+  fill: currentColor;
+}
+
 
 /* Hover */
 .menu-item:hover .mi-icon,
@@ -624,18 +640,19 @@ select.dc-input option{
 }
 
 /* Hover */
-.menu-item:hover, .submenu-item:hover{
-  background: var(--sideHover) !important;
-  color: var(--sideText) !important;
-  border-color: rgba(255,255,255,.06) !important;
+.menu-item:hover .mi-icon,
+.submenu-item:hover .mi-icon{
+  color: #ffffff;
+  transform: translateX(1px);
 }
 
+
 /* Activo */
-.menu-item.active, .submenu-item.active{
-  background: var(--sideActive) !important;
-  color: var(--sideText) !important;
-  border-color: rgba(79,111,255,.35) !important;
+.menu-item.active .mi-icon,
+.submenu-item.active .mi-icon{
+  color: var(--brand);
 }
+
 
 /* Iconos MÁS profesionales:
    - contenedor más sobrio
@@ -692,10 +709,12 @@ select.dc-input option{
 }
 
 /* Subitems más compactos */
+.menu-item,
 .submenu-item{
-  padding: 9px 10px !important;
-  border-radius: 10px !important;
+  background: transparent;
+  border: none;
 }
+
 
 /* Icono del subitem un poco más pequeño */
 .submenu .mi-icon{
@@ -1236,6 +1255,585 @@ body{
 @media (max-width: 1100px){
   .sidebar{ width: 220px; }
 }
+
+.menu-item.active{
+  position: relative;
+}
+
+.menu-item.active::before{
+  content:"";
+  position:absolute;
+  left:0;
+  top:8px;
+  bottom:8px;
+  width:3px;
+  border-radius:3px;
+  background: var(--brand);
+}
+
+
+
+
+
+
+/* =========================================================
+   OVERRIDE FINAL — ICONOS SIN CAJA (ESTILO PRO)
+   Pegar al FINAL del app.css
+   ========================================================= */
+
+/* 1) Items: sin borde ni “botón” */
+.sidebar .menu-item,
+.sidebar .submenu-item{
+  background: transparent !important;
+  border: 1px solid transparent !important;
+  box-shadow: none !important;
+}
+
+/* hover suave */
+.sidebar .menu-item:hover,
+.sidebar .submenu-item:hover{
+  background: rgba(255,255,255,.06) !important;
+  border-color: transparent !important;
+}
+
+/* activo (mantén tu pill si quieres) */
+.sidebar .menu-item.active,
+.sidebar .submenu-item.active{
+  background: rgba(79,111,255,.18) !important;
+  border-color: rgba(79,111,255,.28) !important;
+}
+
+/* 2) ICONO: SIN CAJA, SIN BORDE (lo que pediste) */
+.sidebar .mi-icon{
+  width: 20px !important;
+  height: 20px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+
+  color: rgba(255,255,255,.72) !important;
+  transition: color .15s ease, transform .15s ease !important;
+}
+
+/* SVG: usa currentColor para que el color lo controle .mi-icon */
+.sidebar .mi-icon svg{
+  width: 18px !important;
+  height: 18px !important;
+  fill: currentColor !important;
+}
+
+/* hover del icono: solo color (sin fondo) */
+.sidebar .menu-item:hover .mi-icon,
+.sidebar .submenu-item:hover .mi-icon{
+  color: rgba(255,255,255,.95) !important;
+  transform: translateX(1px) !important;
+}
+
+/* activo del icono: brand */
+.sidebar .menu-item.active .mi-icon,
+.sidebar .submenu-item.active .mi-icon{
+  color: var(--brand) !important;
+  transform: none !important;
+}
+
+/* 3) Submenu: que se note que es hijo (opcional, estilo árbol) */
+.sidebar .menu-group .submenu{
+  margin: 8px 0 10px 42px !important;
+  padding: 6px 0 6px 14px !important;
+  background: transparent !important;
+  border: none !important;
+  position: relative !important;
+}
+
+/* línea vertical del árbol */
+.sidebar .menu-group .submenu::before{
+  content:"";
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  background: rgba(255,255,255,.14);
+  border-radius: 2px;
+}
+
+/* ramita por subitem */
+.sidebar .menu-group .submenu .submenu-item{
+  position: relative !important;
+}
+.sidebar .menu-group .submenu .submenu-item::before{
+  content:"";
+  position:absolute;
+  left: -12px;
+  top: 50%;
+  width: 14px;
+  height: 2px;
+  background: rgba(255,255,255,.14);
+  transform: translateY(-50%);
+  border-radius: 2px;
+}
+
+/* 4) Colapsado: icono sigue sin caja */
+.sidebar.collapsed .mi-icon{
+  background: transparent !important;
+  border: none !important;
+}
+
+/* =========================================
+   FIX SELECT: flecha repetida en filtros
+   Pegar al FINAL del app.css
+   ========================================= */
+
+select.dc-input{
+  /* fuerza 1 flecha (no repetir) */
+  background-repeat: no-repeat !important;
+  background-position: right 12px center !important;
+  background-size: 18px 18px !important;
+
+  /* asegura espacio para la flecha */
+  padding-right: 40px !important;
+
+  /* si alguna regla anterior mete fondos raros */
+  background-color: #ffffff !important;
+
+  /* flecha (tema claro) */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='rgba(17,24,39,0.65)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") !important;
+}
+
+/* opcional: evita que otras reglas pisen el select */
+.dc-input{
+  background-repeat: no-repeat !important;
+}
+
+/* ===== FIX ESPACIO ENTRE TABLA Y DETALLE ===== */
+.inv-grid{
+  gap: 3px !important;   /* antes 14px */
+}
+
+/* ===========================
+   GRID INVENTARIO/COMPRAS FIX
+   (evita hueco derecho)
+   =========================== */
+.inv-grid{
+  width: 100% !important;
+  max-width: 100% !important;
+  justify-content: stretch !important;
+  align-items: stretch !important;
+}
+
+/* Si tu contenedor padre limita el ancho (a veces pasa) */
+.content, #viewContainer{
+  width: 100% !important;
+  max-width: 100% !important;
+}
+/* ===========================
+   GRID INVENTARIO/COMPRAS FIX
+   (evita hueco derecho)
+   =========================== */
+.inv-grid{
+  width: 100% !important;
+  max-width: 100% !important;
+  justify-content: stretch !important;
+  align-items: stretch !important;
+}
+
+/* Si tu contenedor padre limita el ancho (a veces pasa) */
+.content, #viewContainer{
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+
+/* ===== Layout 2 columnas (lista + detalle) ===== */
+.dc-grid{
+  width: 100%;
+  max-width: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
+  gap: 16px;
+  align-items: start;
+}
+
+/* Evita que la izquierda empuje y cause overflow */
+.dc-grid > :first-child{ min-width: 0; }
+
+/* El panel derecho ocupa su columna */
+.dc-grid > :last-child{
+  width: 100%;
+  max-width: 100%;
+  justify-self: stretch;
+}
+
+/* Responsive */
+@media (max-width: 980px){
+  .dc-grid{ grid-template-columns: 1fr; }
+}
+
+
+
+
+
+/* =========================================
+   FIX LAYOUT: 2 COLUMNAS + FULL HEIGHT
+   (lista + detalle con scroll interno)
+   Pegar AL FINAL de app.css
+   ========================================= */
+
+/* Ajusta esto si tu topbar no mide 56px */
+:root{
+  --topbar-h: 64px;
+}
+
+/* El main debe poder “encerrar” el contenido sin crear scroll raro */
+.main{
+  min-width: 0;
+}
+
+/* La zona de contenido ocupa el alto restante y NO scrollea la página */
+.content{
+  height: calc(100vh - var(--topbar-h));
+  overflow: hidden;        /* clave: el scroll va adentro */
+  padding: 14px;           /* el que prefieras */
+}
+
+/* Contenedor de vista siempre a 100% */
+#viewContainer{
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+/* Grid 2 columnas ocupando TODO el ancho y TODO el alto */
+.inv-grid.inv-grid--2col{
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
+  gap: 16px;
+  align-items: stretch; /* clave: estira ambas columnas */
+}
+
+/* Ambos paneles a altura completa */
+.inv-grid.inv-grid--2col > .card,
+.inv-grid.inv-grid--2col > .inv-drawer{
+  height: 100%;
+  min-height: 0;     /* clave para que el overflow funcione */
+  min-width: 0;
+}
+
+/* La card izquierda: layout interno para que el scroll sea en la tabla */
+.inv-grid.inv-grid--2col > .card{
+  display: flex;
+  flex-direction: column;
+}
+
+/* El primer bloque (filtros + botones) no debe crecer */
+.inv-grid.inv-grid--2col > .card > div:first-child{
+  flex: 0 0 auto;
+}
+
+/* El wrapper de tabla ocupa el espacio restante y scrollea */
+.inv-grid.inv-grid--2col > .card .dc-table-wrap{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Panel derecho: scroll interno */
+.inv-drawer{
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#drawerInner{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto; /* scroll interno del detalle */
+}
+
+/* Responsive: en pantallas pequeñas baja el detalle */
+@media (max-width: 980px){
+  .content{
+    height: auto;
+    overflow: auto;
+  }
+
+  #viewContainer{ height: auto; }
+
+  .inv-grid.inv-grid--2col{
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .inv-grid.inv-grid--2col > .card,
+  .inv-grid.inv-grid--2col > .inv-drawer{
+    height: auto;
+  }
+}
+
+/* =========================================================
+   FIX DEFINITIVO: COMPRAS/INVENTARIO (2 columnas full height)
+   Pegar AL FINAL de app.css
+   ========================================================= */
+
+/* Asegura que la app tenga alto completo */
+html, body { height: 100%; }
+.app-layout { height: 100vh; }
+
+/* Tu topbar en tu CSS está en 56px (si es 64, cámbialo aquí) */
+:root{ --topbar-h: 56px; }
+
+/* El main NO debe crear un ancho extra raro */
+.main{ min-width: 0; }
+
+/* El content ocupa el alto restante y no genera scroll externo */
+.content{
+  height: calc(100vh - var(--topbar-h));
+  overflow: hidden;
+  padding: 14px;
+}
+
+/* View container a 100% */
+#viewContainer{
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+}
+
+/* ====== TU CONTENEDOR: .inv-grid ====== */
+.inv-grid{
+  height: 100%;
+  width: 100%;
+  min-width: 0;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 520px);
+  gap: 16px;
+  align-items: stretch;   /* estira ambas columnas */
+}
+
+/* Ambos paneles llenan el alto */
+.inv-grid > .card,
+.inv-grid > .inv-drawer{
+  height: 100%;
+  min-height: 0; /* CLAVE para que overflow funcione */
+  min-width: 0;
+}
+
+/* Card izquierda: filtros arriba, tabla ocupa el resto */
+.inv-grid > .card{
+  display: flex;
+  flex-direction: column;
+}
+
+/* El bloque superior (filtros/botones) no crece */
+.inv-grid > .card > div:first-child{
+  flex: 0 0 auto;
+}
+
+/* La tabla ocupa el resto y scrollea adentro */
+.inv-grid > .card .dc-table-wrap{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Panel derecho: scroll interno */
+.inv-drawer{
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#drawerInner{
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Responsive: en pantalla chica baja el detalle */
+@media (max-width: 980px){
+  .content{ height: auto; overflow: auto; }
+  #viewContainer{ height: auto; }
+
+  .inv-grid{
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .inv-grid > .card,
+  .inv-grid > .inv-drawer{
+    height: auto;
+  }
+}
+
+
+/* =========================================================
+   SCROLLBAR AUTO-OCULTO (Chrome/Edge/Safari + Firefox)
+   SOLO para contenedores con scroll:
+   - .dc-table-wrap   (horizontal)
+   - .inv-drawer      (vertical del panel derecho)
+   - #drawerInner     (si tu contenido scrollea ahí)
+   ========================================================= */
+
+/* --- Firefox: oculto por defecto --- */
+.dc-table-wrap,
+.inv-drawer,
+#drawerInner{
+  scrollbar-width: none;                 /* oculto */
+  scrollbar-color: transparent transparent;
+}
+
+/* --- Firefox: visible al hover --- */
+.dc-table-wrap:hover,
+.inv-drawer:hover,
+#drawerInner:hover{
+  scrollbar-width: thin;                 /* aparece */
+  scrollbar-color: rgba(17,24,39,.30) transparent;
+}
+
+/* --- WebKit (Chrome/Edge/Safari): oculto por defecto --- */
+.dc-table-wrap::-webkit-scrollbar,
+.inv-drawer::-webkit-scrollbar,
+#drawerInner::-webkit-scrollbar{
+  width: 0px;                            /* oculta vertical */
+  height: 0px;                           /* oculta horizontal */
+}
+
+/* --- WebKit: aparece al hover --- */
+.dc-table-wrap:hover::-webkit-scrollbar{
+  height: 10px;                          /* horizontal */
+}
+.inv-drawer:hover::-webkit-scrollbar,
+#drawerInner:hover::-webkit-scrollbar{
+  width: 10px;                           /* vertical */
+}
+
+/* Track transparente */
+.dc-table-wrap::-webkit-scrollbar-track,
+.inv-drawer::-webkit-scrollbar-track,
+#drawerInner::-webkit-scrollbar-track{
+  background: transparent;
+}
+
+/* Thumb discreto */
+.dc-table-wrap::-webkit-scrollbar-thumb,
+.inv-drawer::-webkit-scrollbar-thumb,
+#drawerInner::-webkit-scrollbar-thumb{
+  background: rgba(17,24,39,.22);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Thumb un poco más visible al hover */
+.dc-table-wrap:hover::-webkit-scrollbar-thumb,
+.inv-drawer:hover::-webkit-scrollbar-thumb,
+#drawerInner:hover::-webkit-scrollbar-thumb{
+  background: rgba(17,24,39,.32);
+}
+
+
+
+
+
+/* =========================================
+   SCROLLBARS DISCRETOS (horizontal y vertical)
+   - Ocultos por defecto
+   - Se ven suave al hover o cuando el área está activa
+   ========================================= */
+
+/* 1) Firefox */
+*{
+  scrollbar-width: thin; /* thin / auto */
+  scrollbar-color: rgba(17,24,39,.25) transparent; /* thumb / track */
+}
+
+/* 2) Chrome / Edge / Safari (WebKit) */
+*::-webkit-scrollbar{
+  width: 10px;   /* vertical */
+  height: 10px;  /* horizontal */
+}
+
+*::-webkit-scrollbar-track{
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb{
+  background: rgba(17,24,39,.18);
+  border-radius: 999px;
+  border: 3px solid transparent;       /* hace el thumb más “delgado” */
+  background-clip: padding-box;
+}
+
+/* Hover: un poquito más visible */
+*:hover::-webkit-scrollbar-thumb{
+  background: rgba(17,24,39,.28);
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+/* Corner (cuando hay ambos scrolls) */
+*::-webkit-scrollbar-corner{
+  background: transparent;
+}
+
+/* =========================================
+   OCULTAR hasta que el usuario pase el mouse
+   (solo aplica en navegadores WebKit)
+   ========================================= */
+
+/* Por defecto: thumb invisible */
+*::-webkit-scrollbar-thumb{
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+
+/* Al hover sobre cualquier contenedor scrolleable: aparece */
+*:hover::-webkit-scrollbar-thumb{
+  opacity: 1;
+}
+
+/* =========================================
+   Opcional: para contenedores específicos (recomendado)
+   Si querés que SOLO se aplique a tus áreas con scroll,
+   usa estas clases en vez de "*"
+   ========================================= */
+
+/*
+.dc-table-wrap, #drawerInner{
+  scrollbar-width: thin;
+  scrollbar-color: rgba(17,24,39,.25) transparent;
+}
+.dc-table-wrap::-webkit-scrollbar, #drawerInner::-webkit-scrollbar{
+  width: 10px; height: 10px;
+}
+.dc-table-wrap::-webkit-scrollbar-thumb, #drawerInner::-webkit-scrollbar-thumb{
+  background: rgba(17,24,39,.18);
+  border-radius: 999px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+  opacity: 0;
+  transition: opacity .18s ease;
+}
+.dc-table-wrap:hover::-webkit-scrollbar-thumb, #drawerInner:hover::-webkit-scrollbar-thumb{
+  opacity: 1;
+  background: rgba(17,24,39,.28);
+}
+*/
+
+
 
 
 
