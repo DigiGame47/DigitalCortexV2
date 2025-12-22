@@ -127,7 +127,8 @@ function ensureVentasStyles(){
       top: 12px;
       width: clamp(360px, 35vw, 600px);
       min-width: 360px;
-      height: calc(100vh - 120px);
+      height: 100%;
+      min-height: 0;
       overflow-y: auto;
       overflow-x: hidden;
     }
@@ -315,6 +316,83 @@ function ensureVentasStyles(){
         min-width: unset;
       }
     }
+
+/* ✅ FIX SOLO VENTAS: evita 3ra columna sin afectar compras/inventario */
+.ventas-root .inv-grid{
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 35vw, 600px) !important;
+  height: 100%;
+  min-width: 0;
+}
+
+/* Evita overflow horizontal residual en este módulo */
+.ventas-root{ min-width: 0; width: 100%; overflow-x: hidden; }
+
+
+/* ✅ Ajuste final SOLO VENTAS: quita “aire” derecho e inferior */
+.ventas-root{
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.ventas-root .inv-grid{
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* importante para que el grid no “se pase” y genere scroll/espacios */
+.ventas-root .inv-grid > *{
+  min-width: 0;
+}
+
+/* opcional: si tu contenedor principal tiene padding, compensamos */
+body.page-ventas .content,
+body.page-ventas main{
+  width: 100%;
+  max-width: none;
+}
+
+/* 🚀 SOLUCIÓN RÁPIDA - Agregar al final de ensureVentasStyles() */
+
+/* FIX: Eliminar espacio en blanco derecho/inferior */
+.ventas-root{
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
+  box-sizing: border-box;
+}
+
+.ventas-root .inv-grid{
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(360px, 35vw, 600px);
+  gap: 14px;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.ventas-root .inv-drawer{
+  max-width: 600px;
+  overflow-x: hidden;
+  box-sizing: border-box;
+  height: fit-content;
+  max-height: calc(100vh - 24px);
+}
+
+.ventas-root .card{
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+/* Prevenir scroll horizontal global */
+body.page-ventas{
+  overflow-x: hidden;
+}
+
+
   `;
   document.head.appendChild(s);
 }
@@ -324,57 +402,60 @@ function ensureVentasStyles(){
    ========================= */
 function ventasTemplate(){
   return `
-  <div class="inv-grid">
-    <div class="card" style="padding:14px;">
-      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-          <input id="vSearch" placeholder="Buscar (cliente, producto, teléfono, estado)..." style="min-width:280px;" class="dc-input"/>
-          <select id="vEstadoVenta" class="dc-input">
-            <option value="">ESTADO DE VENTA (TODOS)</option>
-            ${V_ESTADO_VENTA.map(x=>`<option value="${x}">${x}</option>`).join("")}
-          </select>
-          <select id="vLiquidacion" class="dc-input">
-            <option value="">LIQUIDACIÓN (TODOS)</option>
-            ${V_LIQ.map(x=>`<option value="${x}">${x}</option>`).join("")}
-          </select>
+  <div class="ventas-root">
+    <div class="inv-grid">
+      <div class="card" style="padding:14px;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+            <input id="vSearch" placeholder="Buscar (cliente, producto, teléfono, estado)..." style="min-width:280px;" class="dc-input"/>
+            <select id="vEstadoVenta" class="dc-input">
+              <option value="">ESTADO DE VENTA (TODOS)</option>
+              ${V_ESTADO_VENTA.map(x=>`<option value="${x}">${x}</option>`).join("")}
+            </select>
+            <select id="vLiquidacion" class="dc-input">
+              <option value="">LIQUIDACIÓN (TODOS)</option>
+              ${V_LIQ.map(x=>`<option value="${x}">${x}</option>`).join("")}
+            </select>
+          </div>
+
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button id="vBtnNuevo" class="dc-btn">+ Nueva venta</button>
+            <button id="vBtnRefrescar" class="dc-btn dc-btn-ghost">Refrescar</button>
+          </div>
         </div>
 
-        <div style="display:flex;gap:10px;align-items:center;">
-          <button id="vBtnNuevo" class="dc-btn">+ Nueva venta</button>
-          <button id="vBtnRefrescar" class="dc-btn dc-btn-ghost">Refrescar</button>
+        <div style="margin-top:12px;" class="dc-table-wrap">
+          <table class="dc-table">
+            <thead>
+              <tr>
+                <th>Foto</th>
+                <th>FECHA</th>
+                <th>PRODUCTO</th>
+                <th>CLIENTE</th>
+                <th>TEL</th>
+                <th>ESTADO</th>
+                <th style="text-align:right;">TOTAL</th>
+                <th style="text-align:right;">ENVÍO</th>
+                <th style="text-align:right;">PRODUCTO</th>
+                <th style="text-align:right;">COSTO</th>
+                <th style="text-align:right;">GANANCIA</th>
+                <th>LIQ.</th>
+                <th>ACCIONES</th>
+              </tr>
+            </thead>
+            <tbody id="vTbody"></tbody>
+          </table>
         </div>
       </div>
 
-      <div style="margin-top:12px;" class="dc-table-wrap">
-        <table class="dc-table">
-          <thead>
-            <tr>
-              <th>Foto</th>
-              <th>FECHA</th>
-              <th>PRODUCTO</th>
-              <th>CLIENTE</th>
-              <th>TEL</th>
-              <th>ESTADO</th>
-              <th style="text-align:right;">TOTAL</th>
-              <th style="text-align:right;">ENVÍO</th>
-              <th style="text-align:right;">PRODUCTO</th>
-              <th style="text-align:right;">COSTO</th>
-              <th style="text-align:right;">GANANCIA</th>
-              <th>LIQ.</th>
-              <th>ACCIONES</th>
-            </tr>
-          </thead>
-          <tbody id="vTbody"></tbody>
-        </table>
-      </div>
+      <aside class="inv-drawer" id="vDrawer">
+        <div id="vDrawerInner"></div>
+      </aside>
     </div>
-
-    <aside class="inv-drawer" id="vDrawer">
-      <div id="vDrawerInner"></div>
-    </aside>
   </div>
   `;
 }
+
 
 /* ===========================
    RENDER: TABLE
@@ -1024,6 +1105,26 @@ async function deleteVenta(id){
    ========================= */
 export async function mountVentas(container){
   if(!container) throw new Error("mountVentas: container no recibido (router).");
+document.body.classList.remove("page-ventas","page-compras","page-inventario");
+document.body.classList.add("page-ventas");
+
+
+
+  // ✅ FIX: reset de estilos/clases que dejan otros módulos
+  // Limpia estilos inline del contenedor (muy común que otro módulo lo modifique)
+  try { container.removeAttribute("style"); } catch(e){}
+
+  // Si tu router reusa el mismo container y le agrega clases, lo reseteamos.
+  // (Si el contenedor no usa clases, esto no afecta)
+  try {
+    // Conserva solo la clase base si existe; si no, déjalo vacío.
+    // Si preferís conservar clases, comentá estas 2 líneas.
+    container.className = container.classList.contains("content") ? "content" : container.className;
+  } catch(e){}
+
+  // Marca de página para “scoping” de CSS (evita que compras/inventario pisen ventas)
+  document.body.classList.remove("page-ventas","page-compras","page-inventario");
+  document.body.classList.add("page-ventas");
 
   // Cleanup: detener observadores anteriores si existen
   if(ventasState._styleObserver){
@@ -1035,21 +1136,35 @@ export async function mountVentas(container){
 
   // Cleanup total: limpiar contenedor completamente
   container.innerHTML = "";
-  
+
   // Resetear estado para nueva instancia
   ventasState.ventas = [];
   ventasState.filtered = [];
   ventasState.inventario = [];
   ventasState.selectedId = null;
   ventasState.mode = "details";
-  
+
   // Aplicar estilos
   ensureVentasStyles();
+
+  // ✅ FIX extra: forzar que el grid ocupe el ancho completo del contenedor
+  // (evita “huecos” si el padre trae reglas raras de otro módulo)
+  // Esto NO cambia tu UI, solo asegura el layout al volver.
+  const oldStyle = document.getElementById("dc-ventas-layout-fix");
+  if(!oldStyle){
+    const st = document.createElement("style");
+    st.id = "dc-ventas-layout-fix";
+    st.textContent = `
+      body.page-ventas .inv-grid{ width:100%; max-width:100%; }
+      body.page-ventas .card{ width:100%; max-width:100%; }
+    `;
+    document.head.appendChild(st);
+  }
 
   container.innerHTML = ventasTemplate();
   bindHeaderEvents();
   await ventasLoadAll();
-  
+
   // Asegurar que las etiquetas del drawer conserven estilos incluso si
   // otros módulos o reglas CSS intentan sobrescribirlos en runtime.
   const vDrawer = document.getElementById('vDrawer');
@@ -1058,7 +1173,7 @@ export async function mountVentas(container){
       const elems = vDrawer.querySelectorAll('.dc-label');
       elems.forEach(el=>{
         try{
-          el.style.setProperty('color', '#ffffff', 'important');
+          el.style.setProperty('color', '#3f3f3f73', 'important');
           el.style.setProperty('font-weight', '700', 'important');
           el.style.setProperty('font-size', '13px', 'important');
           el.style.setProperty('letter-spacing', '0.3px', 'important');
@@ -1082,5 +1197,6 @@ export async function mountVentas(container){
     ventasState._styleObserver = mo;
   }
 }
+
 
 
