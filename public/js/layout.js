@@ -22,7 +22,8 @@ btnToggleSidebar?.addEventListener("click", () => {
    SUBMENÚS (solo si NO está colapsado)
    ========================= */
 document.querySelectorAll(".menu-item.has-sub").forEach((item) => {
-  item.addEventListener("click", () => {
+  item.addEventListener("click", (ev) => {
+    ev.preventDefault();
     if (sidebar.classList.contains("collapsed")) return;
 
     const group = item.closest(".menu-group");
@@ -35,7 +36,9 @@ document.querySelectorAll(".menu-item.has-sub").forEach((item) => {
     });
 
     // toggle submenu actual
-    submenu.style.display = submenu.style.display === "flex" ? "none" : "flex";
+    const isOpen = submenu.style.display === "flex";
+    submenu.style.display = isOpen ? "none" : "flex";
+    item.classList.toggle("open", !isOpen);
   });
 });
 
@@ -59,7 +62,11 @@ function setActive(el) {
 /* Clicks en items "finales" (no grupos) + subitems */
 document
   .querySelectorAll(".menu-item:not(.has-sub), .submenu-item")
-  .forEach((item) => item.addEventListener("click", () => setActive(item)));
+  .forEach((item) => item.addEventListener("click", (ev) => {
+    // Evitar navegación accidental en <a>
+    ev.preventDefault();
+    setActive(item);
+  }));
 
 /* =========================
    AL ENTRAR: tooltips + estado inicial
@@ -94,14 +101,31 @@ document.querySelectorAll(".submenu-item").forEach((sub) => {
    VISTA INICIAL (si tienes DC router)
    ========================= */
 (function boot() {
-  const active = document.querySelector(".menu-item.active, .submenu-item.active");
-  if (!active) return;
+  // Esperar a que window.DC esté disponible
+  function tryBoot() {
+    if (!window.DC?.openView) {
+      console.log('[layout] Esperando window.DC...');
+      setTimeout(tryBoot, 50);
+      return;
+    }
 
-  const title = active.dataset.title || active.textContent.trim();
-  pageTitle.textContent = title;
+    console.log('[layout] window.DC disponible, iniciando boot');
+    const active = document.querySelector(".menu-item.active, .submenu-item.active");
+    if (!active) {
+      console.warn('[layout] No hay elemento activo');
+      return;
+    }
 
-  const key = active.dataset.key;
-  if (window.DC?.openView && key) {
-    window.DC.openView(key, title);
+    const title = active.dataset.title || active.textContent.trim();
+    const key = active.dataset.key;
+    
+    pageTitle.textContent = title;
+    console.log('[layout] Cargando vista inicial:', { key, title });
+    
+    if (key) {
+      window.DC.openView(key, title);
+    }
   }
+
+  tryBoot();
 })();

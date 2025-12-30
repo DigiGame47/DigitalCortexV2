@@ -44,357 +44,32 @@ const V_RECAUDO      = ["EFECTIVO","PAYPAL","TRANSFERENCIA","CHIVO WALLET","WOMP
 // Funciones utilitarias
 function n(v){ return Number(v || 0); }
 function money(v){ return n(v).toFixed(2); }
-function norm(s){ return (s ?? "").toString().trim().toUpperCase(); }
+function norm(s){ return (s||"").toString().trim().toUpperCase(); }
+function normalize(s){ return (s||"").toString().trim().toUpperCase(); }
 function todayISO(){
   const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth()+1).padStart(2,"0");
-  const dd = String(d.getDate()).padStart(2,"0");
-  return `${yyyy}-${mm}-${dd}`;
+  const pad = (x)=> String(x).padStart(2,"0");
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
-
-/* ===========================
-   NOTIFICACIONES TOAST
-   ========================= */
-function showToast(message, type = "success") {
+function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function showToast(msg, type="info"){
+  // Toast simple: puede mejorarse con animaciones o librería
   const toast = document.createElement("div");
-  toast.className = `toast-notification ${type}`;
-  toast.textContent = message;
-  document.body.appendChild(toast);
-
-  setTimeout(() => {
-    toast.remove();
-  }, 4000);
-}
-
-/* ===========================
-   UI: ESTILOS
-   ========================= */
-function ensureVentasStyles(){
-  if ($("#dc-ventas-styles")) return;
-
-  const s = document.createElement("style");
-  s.id = "dc-ventas-styles";
-  s.textContent = `
-    /* Inputs / Buttons */
-    .dc-input{ padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.03); color: rgba(238,240,255,.95); outline:none; font-size: 13px; }
-    .dc-input::placeholder{ color: rgba(238,240,255,.45); }
-    .dc-input:disabled{ opacity: 0.6; cursor: not-allowed; }
-
-    .dc-btn{ padding:10px 14px; border-radius:12px; border:1px solid rgba(79,111,255,.25);
-      background: rgba(79,111,255,.18); color:#fff; cursor:pointer; font-weight:800; font-size: 13px; }
-    .dc-btn:hover:not(:disabled){ background: rgba(79,111,255,.25); }
-    .dc-btn:disabled{ opacity: 0.5; cursor: not-allowed; }
-    .dc-btn-ghost{ background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.10); }
-    .dc-btn-ghost:hover{ background: rgba(255,255,255,.06); }
-    .dc-danger{ border-color: rgba(255,120,120,.30); background: rgba(255,120,120,.18); }
-    .dc-danger:hover{ background: rgba(255,120,120,.25); }
-
-    select.dc-input{
-      -webkit-appearance:none; -moz-appearance:none; appearance:none;
-      padding-right: 38px;
-      cursor: pointer;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='rgba(238,240,255,0.75)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat:no-repeat;
-      background-position:right 12px center;
-      background-size:18px 18px;
-    }
-    select.dc-input option{ background:#0f1424; color:#eef0ff; }
-
-    /* Grid Layout - Sin espacio en blanco a la derecha */
-    .inv-grid{
-      display:grid;
-      grid-template-columns: 1fr auto;
-      gap: 14px;
-      align-items:start;
-    }
-
-    /* Card */
-    .card{
-      border-radius: 16px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(19,26,42,.70);
-    }
-
-    /* Drawer - Ajustado sin resizer */
-    .inv-drawer{
-      border-radius: 16px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(19,26,42,.70);
-      padding: 14px;
-      position: sticky;
-      top: 12px;
-      width: clamp(360px, 35vw, 600px);
-      min-width: 360px;
-      height: 100%;
-      min-height: 0;
-      overflow-y: auto;
-      overflow-x: hidden;
-    }
-
-    /* Table */
-    .dc-table-wrap{ overflow:auto; border-radius:14px; border:1px solid rgba(255,255,255,.08); }
-    .dc-table{
-      width:100%;
-      border-collapse:separate;
-      border-spacing:0;
-      font-size: 12px;
-    }
-    .dc-table th, .dc-table td{ padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); white-space:nowrap; }
-    .dc-table th{ position:sticky; top:0; background: rgba(15,20,36,.92); z-index:1; text-align:left; font-weight: 800; }
-    .dc-row{ cursor:pointer; }
-    .dc-row:hover{ background: rgba(255,255,255,.04); }
-    .dc-row.selected{ background: rgba(79,111,255,.12); outline: 1px solid rgba(79,111,255,.25); }
-
-    /* Labels & Forms - VENTAS ESPECÍFICO */
-        /* Labels & Forms - VENTAS ESPECÍFICO */
-    #vDrawer {
-      --ventas-label-color: rgba(238,240,255,.85);
-      --ventas-label-size: 13px;
-      color: rgba(238,240,255,.90);
-    }
-    
-    #vDrawer label.dc-label,
-    #vDrawer .dc-label{ 
-      display: block !important;
-      font-size: var(--ventas-label-size) !important; 
-      color: var(--ventas-label-color) !important;
-      font-weight: 700 !important;
-      letter-spacing: 0.3px !important;
-      text-transform: uppercase !important;
-      margin-bottom: 8px !important;
-      padding: 0 !important;
-      background: transparent !important;
-      border: none !important;
-      line-height: 1.4 !important;
-      visibility: visible !important;
-      opacity: 1 !important;
-      position: relative !important;
-      z-index: 1 !important;
-    }
-    
-    #vDrawer .dc-input{ 
-      padding:10px 12px; 
-      border-radius:12px; 
-      border:1px solid rgba(255,255,255,.15);
-      background: rgba(255,255,255,.04); 
-      color: rgba(238,240,255,.95); 
-      outline:none; 
-      font-size: 13px; 
-      width: 100%;
-    }
-    #vDrawer .dc-input::placeholder{ color: rgba(238,240,255,.55); }
-    #vDrawer .dc-input:disabled{ opacity: 0.5; cursor: not-allowed; }
-
-    #vDrawer .drawer-title{ 
-      font-weight:900 !important; 
-      letter-spacing:.3px; 
-      margin:0; 
-      font-size:16px !important; 
-      color: rgba(238,240,255,.95) !important; 
-    }
-    #vDrawer .drawer-sub{ 
-      font-size:12px; 
-      color: rgba(238,240,255,.70); 
-      margin-top:4px; 
-      font-weight: 600;
-    }
-
-    /* Autocomplete Producto */
-    .producto-autocomplete-wrapper{
-      position: relative;
-      width: 100%;
-    }
-    
-    #vProductoInput{
-      width: 100%;
-    }
-    
-    .producto-suggestions{
-      position: absolute;
-      top: 100%;
-      left: 0;
-      right: 0;
-      background: rgba(15,20,36,.95);
-      border: 1px solid rgba(79,111,255,.25);
-      border-top: none;
-      border-radius: 0 0 12px 12px;
-      max-height: 200px;
-      overflow-y: auto;
-      z-index: 1000;
-      display: none;
-    }
-    
-    .producto-suggestions.visible{
-      display: block;
-    }
-    
-    .producto-suggestion-item{
-      padding: 10px 12px;
-      cursor: pointer;
-      border-bottom: 1px solid rgba(255,255,255,.06);
-      color: rgba(238,240,255,.85);
-      font-size: 13px;
-      transition: background 0.15s ease;
-    }
-    
-    .producto-suggestion-item:hover,
-    .producto-suggestion-item.active{
-      background: rgba(79,111,255,.18);
-    }
-    
-    .producto-suggestion-item:last-child{
-      border-bottom: none;
-    }
-    
-    .producto-suggestion-item strong{
-      color: rgba(238,240,255,.95);
-      font-weight: 700;
-    }
-
-    /* Notificación Toast */
-    .toast-notification{
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: rgba(79, 111, 255, 0.95);
-      color: #fff;
-      padding: 14px 18px;
-      border-radius: 12px;
-      border: 1px solid rgba(79, 111, 255, 0.5);
-      font-size: 13px;
-      font-weight: 600;
-      z-index: 9999;
-      animation: slideInRight 0.3s ease-out, slideOutRight 0.3s ease-out 3.7s forwards;
-      box-shadow: 0 8px 24px rgba(79, 111, 255, 0.3);
-    }
-    .toast-notification.error{
-      background: rgba(255, 120, 120, 0.95);
-      border-color: rgba(255, 120, 120, 0.5);
-      box-shadow: 0 8px 24px rgba(255, 120, 120, 0.3);
-    }
-    .toast-notification.success{
-      background: rgba(120, 200, 120, 0.95);
-      border-color: rgba(120, 200, 120, 0.5);
-      box-shadow: 0 8px 24px rgba(120, 200, 120, 0.3);
-    }
-
-    @keyframes slideInRight{
-      from{
-        transform: translateX(400px);
-        opacity: 0;
-      }
-      to{
-        transform: translateX(0);
-        opacity: 1;
-      }
-    }
-    @keyframes slideOutRight{
-      from{
-        transform: translateX(0);
-        opacity: 1;
-      }
-      to{
-        transform: translateX(400px);
-        opacity: 0;
-      }
-    }
-
-    /* Responsive */
-    @media (max-width: 1200px){
-      .inv-drawer{ width: clamp(320px, 30vw, 500px); }
-    }
-    @media (max-width: 1000px){
-      .inv-grid{ grid-template-columns: 1fr; }
-      .inv-drawer{
-        position:relative;
-        top:auto;
-        right:auto;
-        height:auto;
-        width:100%;
-        min-width: unset;
-      }
-    }
-
-/* ✅ FIX SOLO VENTAS: evita 3ra columna sin afectar compras/inventario */
-.ventas-root .inv-grid{
-  grid-template-columns: minmax(0, 1fr) clamp(360px, 35vw, 600px) !important;
-  height: 100%;
-  min-width: 0;
-}
-
-/* Evita overflow horizontal residual en este módulo */
-.ventas-root{ min-width: 0; width: 100%; overflow-x: hidden; }
-
-
-/* ✅ Ajuste final SOLO VENTAS: quita “aire” derecho e inferior */
-.ventas-root{
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-.ventas-root .inv-grid{
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-/* importante para que el grid no “se pase” y genere scroll/espacios */
-.ventas-root .inv-grid > *{
-  min-width: 0;
-}
-
-/* opcional: si tu contenedor principal tiene padding, compensamos */
-body.page-ventas .content,
-body.page-ventas main{
-  width: 100%;
-  max-width: none;
-}
-
-/* 🚀 SOLUCIÓN RÁPIDA - Agregar al final de ensureVentasStyles() */
-
-/* FIX: Eliminar espacio en blanco derecho/inferior */
-.ventas-root{
-  width: 100%;
-  max-width: 100%;
-  overflow-x: hidden;
-  box-sizing: border-box;
-}
-
-.ventas-root .inv-grid{
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(360px, 35vw, 600px);
-  gap: 14px;
-  max-width: 100%;
-  overflow: hidden;
-  box-sizing: border-box;
-}
-
-.ventas-root .inv-drawer{
-  max-width: 600px;
-  overflow-x: hidden;
-  box-sizing: border-box;
-  height: fit-content;
-  max-height: calc(100vh - 24px);
-}
-
-.ventas-root .card{
-  box-sizing: border-box;
-  max-width: 100%;
-}
-
-/* Prevenir scroll horizontal global */
-body.page-ventas{
-  overflow-x: hidden;
-}
-
-
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    padding: 12px 16px;
+    background: ${type==="error" ? "rgba(239,68,68,.9)" : type==="success" ? "rgba(34,197,94,.9)" : "rgba(99,102,241,.9)"};
+    color: white;
+    border-radius: 8px;
+    font-size: 12px;
+    z-index: 10000;
+    box-shadow: 0 4px 12px rgba(0,0,0,.3);
   `;
-  document.head.appendChild(s);
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(()=> toast.remove(), 3000);
 }
 
 /* ===========================
@@ -402,64 +77,114 @@ body.page-ventas{
    ========================= */
 function ventasTemplate(){
   return `
-  <div class="ventas-root">
-    <div class="inv-grid">
-      <div class="card" style="padding:14px;">
-        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
-            <input id="vSearch" placeholder="Buscar (cliente, producto, teléfono, estado)..." style="min-width:280px;" class="dc-input"/>
-            <select id="vEstadoVenta" class="dc-input">
-              <option value="">ESTADO DE VENTA (TODOS)</option>
-              ${V_ESTADO_VENTA.map(x=>`<option value="${x}">${x}</option>`).join("")}
-            </select>
-            <select id="vLiquidacion" class="dc-input">
-              <option value="">LIQUIDACIÓN (TODOS)</option>
-              ${V_LIQ.map(x=>`<option value="${x}">${x}</option>`).join("")}
-            </select>
-          </div>
-
-          <div style="display:flex;gap:10px;align-items:center;">
-            <button id="vBtnNuevo" class="dc-btn">+ Nueva venta</button>
-            <button id="vBtnRefrescar" class="dc-btn dc-btn-ghost">Refrescar</button>
-          </div>
+  <div class="inv-grid">
+    <div class="card" style="padding:14px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;">
+        <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+          <input id="vSearch" placeholder="Buscar (cliente, producto, teléfono, estado)..." style="min-width:280px;" class="dc-input"/>
+          <select id="vEstadoVenta" class="dc-input">
+            <option value="">ESTADO DE VENTA (TODOS)</option>
+            ${V_ESTADO_VENTA.map(x=>`<option value="${x}">${x}</option>`).join("")}
+          </select>
+          <select id="vLiquidacion" class="dc-input">
+            <option value="">LIQUIDACIÓN (TODOS)</option>
+            ${V_LIQ.map(x=>`<option value="${x}">${x}</option>`).join("")}
+          </select>
         </div>
 
-        <div style="margin-top:12px;" class="dc-table-wrap">
-          <table class="dc-table">
-            <thead>
-              <tr>
-                <th>Foto</th>
-                <th>FECHA</th>
-                <th>PRODUCTO</th>
-                <th>CLIENTE</th>
-                <th>TEL</th>
-                <th>ESTADO</th>
-                <th style="text-align:right;">TOTAL</th>
-                <th style="text-align:right;">ENVÍO</th>
-                <th style="text-align:right;">PRODUCTO</th>
-                <th style="text-align:right;">COSTO</th>
-                <th style="text-align:right;">GANANCIA</th>
-                <th>LIQ.</th>
-                <th>ACCIONES</th>
-              </tr>
-            </thead>
-            <tbody id="vTbody"></tbody>
-          </table>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button id="vBtnNuevo" class="dc-btn">+ Nueva venta</button>
+          <button id="vBtnRefrescar" class="dc-btn dc-btn-ghost">Refrescar</button>
         </div>
       </div>
 
-      <aside class="inv-drawer" id="vDrawer">
-        <div id="vDrawerInner"></div>
-      </aside>
+      <div style="margin-top:12px;" class="dc-table-wrap">
+        <table class="dc-table">
+          <thead>
+            <tr>
+              <th>Foto</th>
+              <th>FECHA</th>
+              <th>PRODUCTO</th>
+              <th>CLIENTE</th>
+              <th>TEL</th>
+              <th>ESTADO</th>
+              <th style="text-align:right;">TOTAL</th>
+              <th style="text-align:right;">ENVÍO</th>
+              <th style="text-align:right;">PRODUCTO</th>
+              <th style="text-align:right;">COSTO</th>
+              <th style="text-align:right;">GANANCIA</th>
+              <th>LIQ.</th>
+              <th>ACCIONES</th>
+            </tr>
+          </thead>
+          <tbody id="vTbody"></tbody>
+        </table>
+      </div>
     </div>
+
+    <div class="drawer-resizer" id="drawerResizer" title="Ajustar ancho del panel" aria-hidden="true"></div>
+
+    <aside class="inv-drawer" id="vDrawer">
+      <div id="vDrawerInner"></div>
+    </aside>
   </div>
   `;
 }
 
+/* ===========================
+   RESIZER
+   =========================== */
+function initResizer(container){
+  const resizer = container.querySelector('#drawerResizer');
+  const drawer = container.querySelector('#vDrawer');
+  if (!resizer || !drawer) return;
+
+  if (container.dataset.resizerBound === "1") return;
+  container.dataset.resizerBound = "1";
+
+  const saved = localStorage.getItem('dc_drawer_w');
+  if (saved) document.documentElement.style.setProperty('--drawerW', saved + 'px');
+
+  const MIN = 420, MAX = 920, BREAK = 1100;
+  let dragging = false;
+  let startX = 0;
+  let startW = 0;
+
+  resizer.addEventListener('pointerdown', (ev) => {
+    if (window.innerWidth <= BREAK) return;
+    dragging = true;
+    startX = ev.clientX;
+    startW = drawer.getBoundingClientRect().width;
+    resizer.setPointerCapture(ev.pointerId);
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  function onMove(ev){
+    if (!dragging) return;
+    const dx = ev.clientX - startX;
+    let newW = Math.round(startW + dx);
+    newW = Math.max(MIN, Math.min(MAX, newW));
+    document.documentElement.style.setProperty('--drawerW', newW + 'px');
+  }
+
+  function stop(ev){
+    if (!dragging) return;
+    dragging = false;
+    try{ resizer.releasePointerCapture(ev.pointerId); } catch(e){}
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+    const cur = getComputedStyle(document.documentElement).getPropertyValue('--drawerW')?.trim();
+    if (cur) localStorage.setItem('dc_drawer_w', cur.replace('px',''));
+  }
+
+  document.addEventListener('pointermove', onMove);
+  document.addEventListener('pointerup', stop);
+}
 
 /* ===========================
    RENDER: TABLE
-=========================== */
+   =========================== */
 function rowHTML(v){
   const img = v.imagen_url ? `<img src="${v.imagen_url}" style="width:34px;height:34px;border-radius:10px;object-fit:cover;border:1px solid rgba(15,23,42,.10)" />` : `—`;
   return `
@@ -660,36 +385,7 @@ function renderDrawer(data){
   // Actualizar referencia para los setTimeout siguientes
   const updatedInner = $("#vDrawerInner");
   
-  // Aplicar estilos inline a todas las etiquetas como respaldo
-  setTimeout(() => {
-    const labels = Array.from(updatedInner.querySelectorAll("label.dc-label"));
-    labels.forEach(label => {
-      try{
-        const replacement = document.createElement('div');
-        replacement.className = label.className;
-        replacement.innerHTML = label.innerHTML;
-        for(const attr of Array.from(label.attributes)){
-          if(attr.name.startsWith('data-')) replacement.setAttribute(attr.name, attr.value);
-        }
-        label.parentNode.replaceChild(replacement, label);
-        replacement.style.setProperty('display', 'block', 'important');
-        replacement.style.setProperty('font-size', '13px', 'important');
-        replacement.style.setProperty('color', '#ffffff', 'important');
-        replacement.style.setProperty('font-weight', '700', 'important');
-        replacement.style.setProperty('letter-spacing', '0.3px', 'important');
-        replacement.style.setProperty('text-transform', 'uppercase', 'important');
-        replacement.style.setProperty('margin-bottom', '8px', 'important');
-        replacement.style.setProperty('padding', '0', 'important');
-        replacement.style.setProperty('background', 'transparent', 'important');
-        replacement.style.setProperty('border', 'none', 'important');
-        replacement.style.setProperty('line-height', '1.4', 'important');
-        replacement.style.setProperty('visibility', 'visible', 'important');
-        replacement.style.setProperty('opacity', '1', 'important');
-      }catch(e){
-        console.warn('replace label failed', e);
-      }
-    });
-  }, 0);
+  // Estilos controlados por CSS en app.css; no forzamos inline.
   
   bindDrawerEvents();
   recalcVentaFields();
@@ -1144,24 +840,8 @@ document.body.classList.add("page-ventas");
   ventasState.selectedId = null;
   ventasState.mode = "details";
 
-  // Aplicar estilos
-  ensureVentasStyles();
-
-  // ✅ FIX extra: forzar que el grid ocupe el ancho completo del contenedor
-  // (evita “huecos” si el padre trae reglas raras de otro módulo)
-  // Esto NO cambia tu UI, solo asegura el layout al volver.
-  const oldStyle = document.getElementById("dc-ventas-layout-fix");
-  if(!oldStyle){
-    const st = document.createElement("style");
-    st.id = "dc-ventas-layout-fix";
-    st.textContent = `
-      body.page-ventas .inv-grid{ width:100%; max-width:100%; }
-      body.page-ventas .card{ width:100%; max-width:100%; }
-    `;
-    document.head.appendChild(st);
-  }
-
   container.innerHTML = ventasTemplate();
+  initResizer(container);
   bindHeaderEvents();
   await ventasLoadAll();
 
@@ -1169,32 +849,11 @@ document.body.classList.add("page-ventas");
   // otros módulos o reglas CSS intentan sobrescribirlos en runtime.
   const vDrawer = document.getElementById('vDrawer');
   if(vDrawer){
-    const applyForcedStyles = () => {
-      const elems = vDrawer.querySelectorAll('.dc-label');
-      elems.forEach(el=>{
-        try{
-          el.style.setProperty('color', '#3f3f3f73', 'important');
-          el.style.setProperty('font-weight', '700', 'important');
-          el.style.setProperty('font-size', '13px', 'important');
-          el.style.setProperty('letter-spacing', '0.3px', 'important');
-          el.style.setProperty('text-transform', 'uppercase', 'important');
-          el.style.setProperty('margin-bottom', '8px', 'important');
-          el.style.setProperty('padding', '0', 'important');
-          el.style.setProperty('background', 'transparent', 'important');
-          el.style.setProperty('border', 'none', 'important');
-        }catch(e){/* ignore */}
-      });
-    };
-
-    applyForcedStyles();
-
+    // Estilos controlados por CSS central; no observar cambios para forzar inline.
     if(ventasState._styleObserver){
-      ventasState._styleObserver.disconnect();
+      try { ventasState._styleObserver.disconnect(); } catch(e){}
+      ventasState._styleObserver = null;
     }
-
-    const mo = new MutationObserver(()=>{ applyForcedStyles(); });
-    mo.observe(vDrawer, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
-    ventasState._styleObserver = mo;
   }
 }
 

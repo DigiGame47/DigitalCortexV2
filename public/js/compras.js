@@ -49,188 +49,6 @@ function calcStockProyectado(stock, transito, reservado){
 function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* =========================
-   UI + ESTILOS (IGUAL A INVENTARIO)
-   ========================= */
-
-
-function ensureUIStyles(){
-  if ($("#dc-comp-styles")) return;
-
-  const s = document.createElement("style");
-  s.id = "dc-comp-styles";
-  s.textContent = `
-    .dc-input{ padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.03); color: rgba(238,240,255,.95); outline:none; }
-    .dc-input::placeholder{ color: rgba(238,240,255,.45); }
-
-    .dc-btn{ padding:10px 14px; border-radius:12px; border:1px solid rgba(79,111,255,.25);
-      background: rgba(79,111,255,.18); color:#fff; cursor:pointer; font-weight:800; }
-    .dc-btn:hover{ background: rgba(79,111,255,.25); }
-    .dc-btn-ghost{ background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.10); }
-    .dc-btn-ghost:hover{ background: rgba(255,255,255,.06); }
-    .dc-danger{ border-color: rgba(255,120,120,.30); background: rgba(255,120,120,.18); }
-    .dc-danger:hover{ background: rgba(255,120,120,.25); }
-
-    .dc-input{ -webkit-appearance:none; -moz-appearance:none; appearance:none; }
-    select.dc-input{
-      padding-right: 38px;
-      cursor: pointer;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='rgba(238,240,255,0.75)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat:no-repeat;
-      background-position:right 12px center;
-      background-size:18px 18px;
-    }
-    select.dc-input option{ background:#0f1424; color:#eef0ff; }
-
-    /* =========================
-       GRID (RESPONSIVE REAL)
-       ========================= */
-
-    /* ✅ minmax(0,1fr) evita que la tabla "reviente" el grid */
-    .inv-grid{
-      display:grid;
-      grid-template-columns: minmax(0, 1fr) auto clamp(320px, 32vw, var(--drawerW, 520px));
-      gap: 14px;
-      align-items:start;
-    }
-
-    /* drawer (columna derecha) */
-    .inv-drawer{
-      border-radius: 16px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(19,26,42,.70);
-      padding: 12px;
-      position: sticky;
-      top: 12px;
-
-      /* ✅ ancho flexible (mejor que fijo) */
-      width: clamp(320px, 32vw, var(--drawerW, 520px));
-      min-width: 320px;
-      max-width: 920px;
-
-      height: calc(100vh - 120px);
-      overflow: auto;
-    }
-
-    /* ✅ Breakpoint más realista (muchas pantallas quedan entre 1200–1400) */
-    @media (max-width: 1400px){
-      .inv-grid{ grid-template-columns: minmax(0, 1fr) auto 420px; }
-      .inv-drawer{ width: 420px; min-width: 360px; }
-    }
-
-    /* ✅ ya en pantallas menores: 1 columna (drawer abajo) */
-    @media (max-width: 1100px){
-      .inv-grid{ grid-template-columns: 1fr; }
-      .inv-drawer{
-        position:relative;
-        top:auto;
-        height:auto;
-        width:100%;
-        min-width: unset;
-        max-width: unset;
-      }
-      .drawer-resizer{ display:none; }
-    }
-
-    /* =========================
-       TABLE
-       ========================= */
-    .dc-table-wrap{ overflow:auto; border-radius:14px; border:1px solid rgba(255,255,255,.08); }
-
-    /* ✅ min-width moderado */
-    .dc-table{
-      width:100%;
-      border-collapse:separate;
-      border-spacing:0;
-      min-width: 1050px;
-    }
-    @media (max-width: 700px){
-      .dc-table{ min-width: 760px; }
-    }
-
-    .dc-table th, .dc-table td{ padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); font-size:13px; white-space:nowrap; }
-    .dc-table th{ position:sticky; top:0; background: rgba(15,20,36,.92); z-index:1; text-align:left; }
-    .dc-row{ cursor:pointer; }
-    .dc-row:hover{ background: rgba(255,255,255,.04); }
-    .dc-row.selected{ background: rgba(79,111,255,.12); outline: 1px solid rgba(79,111,255,.25); }
-
-    .dc-actions{ display:flex; gap:8px; }
-    .dc-mini{ padding:8px 10px; border-radius:10px; font-weight:800; }
-    .dc-pill{ padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); display:inline-block; }
-
-    /* resizer */
-    .drawer-resizer{ width:12px; cursor: col-resize; display:block; border-radius:8px; background:transparent; position:relative; }
-    .drawer-resizer::before{ content:""; position:absolute; top:8px; bottom:8px; left:5px; width:2px; background: rgba(255,255,255,.06); border-radius:2px; }
-
-    .drawer-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-    .drawer-title{ font-weight:900; letter-spacing:.2px; margin:0; font-size:14px; color: rgba(238,240,255,.92); }
-    .drawer-sub{ font-size:12px; color: rgba(238,240,255,.60); margin-top:2px; }
-
-    .preview-img{
-      width:100%;
-      aspect-ratio: 16/10;
-      border-radius: 14px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.04);
-      object-fit: cover;
-      margin-bottom:10px;
-    }
-
-    .chiprow{ display:flex; gap:8px; flex-wrap:wrap; margin: 6px 0 10px; }
-    .chip{ padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); font-size:12px; }
-
-    .kv{
-      display:grid;
-      grid-template-columns: 140px 1fr;
-      gap:8px;
-      padding:8px 0;
-      border-bottom:1px solid rgba(255,255,255,.06);
-      font-size:12px;
-    }
-    @media (max-width: 520px){
-      .kv{ grid-template-columns: 1fr; }
-      .dc-input{ width:100%; }
-    }
-    .kv b{ color: rgba(238,240,255,.85); font-weight:800; }
-    .kv span{ color: rgba(238,240,255,.78); }
-
-    .form-grid{ display:grid; grid-template-columns: 1fr; gap:10px; margin-top:10px; }
-    .dc-label{ display:flex; flex-direction:column; gap:6px; font-size:12px; color: rgba(238,240,255,.78); }
-
-    .divider{ height:1px; background: rgba(255,255,255,.08); margin:10px 0; }
-    .hint{ font-size:12px; color: rgba(238,240,255,.58); line-height:1.35; }
-
-    .dc-img-sm{
-      width:34px; height:34px; border-radius:10px; object-fit:cover;
-      border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.05);
-    }
-
-    /* Suggestions (autocomplete) */
-    .dc-suggest-wrap{ position:relative; }
-    .suggestions{ position:absolute; left:0; top:calc(100% + 6px); min-width:260px; max-width:calc(100vw - 40px); background:#0f1424; border:1px solid rgba(255,255,255,.08); border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.45); z-index:80; max-height:260px; overflow:auto; }
-    .suggestion-item{ padding:8px 10px; cursor:pointer; color: rgba(238,240,255,.95); font-size:13px; }
-    .suggestion-item:hover, .suggestion-item.active{ background: rgba(79,111,255,.12); }
-
-    .dc-badge{
-      padding:6px 10px; border-radius:12px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.03);
-      font-size:12px;
-    }
-
-    .dc-btn-warn{
-      border-color: rgba(255,205,120,.35);
-      background: rgba(255,205,120,.18);
-    }
-    .dc-btn-warn:hover{ background: rgba(255,205,120,.26); }
-  `;
-  document.head.appendChild(s);
-}
-
-
-
-
-/* =========================
    TEMPLATE VISTA COMPRAS
    ========================= */
 function viewTemplate(){
@@ -597,46 +415,42 @@ function kv(k,v){
    FORM
    ========================= */
 function drawerForm(r){
-  // r == null => new
-  // r != null => edit
+  const extKey = escapeHtml(r?.external_key || "");
+  const nRastreo = escapeHtml(r?.n_rastreo || "");
   return `
     <form id="drawerForm" class="form-grid">
-
-      <label class="dc-label">PRODUCTO / CONDICIÓN (CLAVE) *
-        <input id="cProductoKey" class="dc-input" placeholder="EJ: JBL TUNE BUDS|SIN_CAJA" required ${r ? "disabled" : ""}>
-      </label>
-
-      <div id="prodChips"></div>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <label class="dc-label">N PRODUCTO
-          <input id="cNProducto" class="dc-input" disabled>
+      <div>
+        <label class="dc-label">PRODUCTO (CLAVE)
+          <div class="dc-suggest-wrap">
+            <input id="cProductoKey" class="dc-input" placeholder="NOMBRE | CONDICIÓN" value="${extKey}">
+            <div class="suggestions"></div>
+          </div>
         </label>
-        <label class="dc-label">CATEGORÍA
-          <input id="cCategoria" class="dc-input" disabled>
-        </label>
+        <div id="prodChips">${productChips(r ? findProductoByKey(r.external_key) : null)}</div>
       </div>
 
-      <label class="dc-label">CONDICIÓN
-        <input id="cCondicion" class="dc-input" disabled>
-      </label>
-
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <label class="dc-label">N RASTREO <input id="cRastreo" class="dc-input" placeholder="OPCIONAL"></label>
-        <label class="dc-label">ESTADO DE TRÁNSITO *
-          <select id="cEstado" class="dc-input" required>
-            ${ESTADOS_TRANSITO.map(x=> `<option>${x}</option>`).join("")}
+        <label class="dc-label">NÚMERO DE RASTREO
+          <input id="cRastreo" class="dc-input" value="${nRastreo}">
+        </label>
+        <label class="dc-label">ESTADO EN TRÁNSITO
+          <select id="cEstado" class="dc-input">
+            ${ESTADOS_TRANSITO.map(x => `<option>${x}</option>`).join("")}
           </select>
         </label>
       </div>
 
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <label class="dc-label">CANTIDAD * <input id="cCantidad" class="dc-input" type="number" min="1" value="1" required></label>
-        <label class="dc-label">TOTAL COSTO * <input id="cTotalCosto" class="dc-input" type="number" min="0" step="0.01" value="0" required></label>
+        <label class="dc-label">CANTIDAD
+          <input id="cCantidad" class="dc-input" type="number" min="1" step="1" value="${r ? n(r.cantidad) : 1}">
+        </label>
+        <label class="dc-label">TOTAL COSTO
+          <input id="cTotalCosto" class="dc-input" type="number" min="0" step="0.01" value="${r ? n(r.total_costo) : 0}">
+        </label>
       </div>
 
-      <label class="dc-label">COSTO UNITARIO (AUTO)
-        <input id="cCostoUnitario" class="dc-input" type="number" step="0.01" value="0" disabled>
+      <label class="dc-label">COSTO UNITARIO (CALCULADO)
+        <input id="cCostoUnitario" class="dc-input" type="text" value="${r ? money(n(r.costo_unitario)) : '0.00'}" disabled>
       </label>
 
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
@@ -1366,7 +1180,6 @@ export async function mountComprasGeneral(container){
   // Limpiar el contenedor completamente
   container.innerHTML = "";
   
-  ensureUIStyles();
   container.innerHTML = viewTemplate();
 
   $("#btnNuevo").addEventListener("click", openNew);

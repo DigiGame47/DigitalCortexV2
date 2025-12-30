@@ -23,183 +23,6 @@ function normalize(s){
   return (s || "").toString().trim().toUpperCase();
 }
 
-function calcStockProyectado(stock, transito, reservado){
-  return n(stock) + n(transito) - n(reservado);
-}
-
-/* =========================
-   UI + ESTILOS
-   ========================= */
-function ensureUIStyles(){
-  if ($("#dc-inv-styles")) return;
-
-  const s = document.createElement("style");
-  s.id = "dc-inv-styles";
-  s.textContent = `
-    /* Inputs / Buttons */
-    .dc-input{ padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.03); color: rgba(238,240,255,.95); outline:none; }
-    .dc-input::placeholder{ color: rgba(238,240,255,.45); }
-
-    .dc-btn{ padding:10px 14px; border-radius:12px; border:1px solid rgba(79,111,255,.25);
-      background: rgba(79,111,255,.18); color:#fff; cursor:pointer; font-weight:800; }
-    .dc-btn:hover{ background: rgba(79,111,255,.25); }
-    .dc-btn-ghost{ background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.10); }
-    .dc-btn-ghost:hover{ background: rgba(255,255,255,.06); }
-    .dc-danger{ border-color: rgba(255,120,120,.30); background: rgba(255,120,120,.18); }
-    .dc-danger:hover{ background: rgba(255,120,120,.25); }
-
-    /* Select (combobox) */
-    .dc-input{ -webkit-appearance:none; -moz-appearance:none; appearance:none; }
-    select.dc-input{
-      padding-right: 38px;
-      cursor: pointer;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none'%3E%3Cpath d='M7 10l5 5 5-5' stroke='rgba(238,240,255,0.75)' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-      background-repeat:no-repeat;
-      background-position:right 12px center;
-      background-size:18px 18px;
-    }
-    select.dc-input option{ background:#0f1424; color:#eef0ff; }
-
-    /* =========================
-       Layout grid: table + right panel (RESPONSIVE FIX)
-       ========================= */
-
-    /* ✅ minmax(0,1fr) evita que la tabla rompa el grid */
-    .inv-grid{
-      display:grid;
-      grid-template-columns: minmax(0, 1fr) auto clamp(320px, 32vw, var(--drawerW, 520px));
-      gap: 14px;
-      align-items:start;
-    }
-
-    /* Drawer right panel */
-    .inv-drawer{
-      border-radius: 16px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(19,26,42,.70);
-      padding: 12px;
-      position: sticky;
-      top: 12px;
-
-      /* ✅ ancho flexible */
-      width: clamp(320px, 32vw, var(--drawerW, 520px));
-      min-width: 320px;
-      max-width: 920px;
-
-      height: calc(100vh - 120px);
-      overflow: auto;
-    }
-
-    /* ✅ breakpoint intermedio: reduce drawer para pantallas "normales" */
-    @media (max-width: 1400px){
-      .inv-grid{ grid-template-columns: minmax(0, 1fr) auto 420px; }
-      .inv-drawer{ width: 420px; min-width: 360px; }
-    }
-
-    /* ✅ en pantallas pequeñas: drawer abajo */
-    @media (max-width: 1100px){
-      .inv-grid{ grid-template-columns: 1fr; }
-      .inv-drawer{
-        position:relative;
-        top:auto;
-        right:auto;
-        height:auto;
-        width:100%;
-        min-width: unset;
-        max-width: unset;
-      }
-      .drawer-resizer{ display:none; }
-    }
-
-    /* =========================
-       Table
-       ========================= */
-    .dc-table-wrap{ overflow:auto; border-radius:14px; border:1px solid rgba(255,255,255,.08); }
-
-    /* ✅ bajar min-width para que no empuje tanto */
-    .dc-table{
-      width:100%;
-      border-collapse:separate;
-      border-spacing:0;
-      min-width: 980px; /* antes 1100 */
-    }
-    @media (max-width: 700px){
-      .dc-table{ min-width: 760px; }
-    }
-
-    .dc-table th, .dc-table td{ padding:10px 12px; border-bottom:1px solid rgba(255,255,255,.06); font-size:13px; white-space:nowrap; }
-    .dc-table th{ position:sticky; top:0; background: rgba(15,20,36,.92); z-index:1; text-align:left; }
-    .dc-row{ cursor:pointer; }
-    .dc-row:hover{ background: rgba(255,255,255,.04); }
-    .dc-row.selected{ background: rgba(79,111,255,.12); outline: 1px solid rgba(79,111,255,.25); }
-
-    .dc-actions{ display:flex; gap:8px; }
-    .dc-mini{ padding:8px 10px; border-radius:10px; font-weight:800; }
-
-    .dc-pill{ padding:4px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); display:inline-block; }
-
-    .drawer-resizer{ width:12px; cursor: col-resize; display:block; border-radius:8px; background:transparent; position:relative; }
-    .drawer-resizer::before{ content:""; position:absolute; top:8px; bottom:8px; left:5px; width:2px; background: rgba(255,255,255,.06); border-radius:2px; }
-
-    .drawer-head{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
-    .drawer-title{ font-weight:900; letter-spacing:.2px; margin:0; font-size:14px; color: rgba(238,240,255,.92); }
-    .drawer-sub{ font-size:12px; color: rgba(238,240,255,.60); margin-top:2px; }
-
-    .preview-img{
-      width:100%;
-      aspect-ratio: 16/10;
-      border-radius: 14px;
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(255,255,255,.04);
-      object-fit: cover;
-      margin-bottom:10px;
-    }
-
-    .kv{
-      display:grid;
-      grid-template-columns: 120px 1fr;
-      gap:8px;
-      padding:8px 0;
-      border-bottom:1px solid rgba(255,255,255,.06);
-      font-size:12px;
-    }
-    @media (max-width: 520px){
-      .kv{ grid-template-columns: 1fr; }
-      .dc-input{ width:100%; }
-    }
-    .kv b{ color: rgba(238,240,255,.85); font-weight:800; }
-    .kv span{ color: rgba(238,240,255,.78); }
-
-    .form-grid{
-      display:grid;
-      grid-template-columns: 1fr;
-      gap:10px;
-      margin-top:10px;
-    }
-    .dc-label{ display:flex; flex-direction:column; gap:6px; font-size:12px; color: rgba(238,240,255,.78); }
-
-    .divider{ height:1px; background: rgba(255,255,255,.08); margin:10px 0; }
-
-    .chiprow{ display:flex; gap:8px; flex-wrap:wrap; }
-    .chip{ padding:6px 10px; border-radius:999px; border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.03); font-size:12px; }
-
-    .hint{ font-size:12px; color: rgba(238,240,255,.58); line-height:1.35; }
-    .dc-img-sm{
-      width:34px; height:34px; border-radius:10px; object-fit:cover;
-      border:1px solid rgba(255,255,255,.10); background: rgba(255,255,255,.05);
-    }
-
-    /* Suggestions (autocomplete) */
-    .dc-suggest-wrap{ position:relative; }
-    .suggestions{ position:absolute; left:0; top:calc(100% + 6px); min-width:220px; max-width:calc(100vw - 40px); background:#0f1424; border:1px solid rgba(255,255,255,.08); border-radius:8px; box-shadow:0 10px 30px rgba(0,0,0,.45); z-index:80; max-height:240px; overflow:auto; }
-    .suggestion-item{ padding:8px 10px; cursor:pointer; color: rgba(238,240,255,.95); font-size:13px; }
-    .suggestion-item:hover, .suggestion-item.active{ background: rgba(79,111,255,.12); }
-  `;
-  document.head.appendChild(s);
-}
-
-
 /* =========================
    TEMPLATE VISTA
    ========================= */
@@ -460,56 +283,98 @@ function renderDrawer(){
 }
 
 function kv(k, v){
-  const val = (v === null || v === undefined || v === "" ? "—" : v);
-  return `<div class="kv"><b>${k}</b><span>${val}</span></div>`;
+  return `<div class="kv"><b>${k||""}</b><span>${v||""}</span></div>`;
 }
 
 function drawerForm(r){
   return `
     <form id="drawerForm" class="form-grid">
-      <label class="dc-label">Nombre * <input id="pNombre" class="dc-input" required></label>
-      <label class="dc-label">Categoría * <input id="pCategoria" class="dc-input" required placeholder="AUDIFONOS / TECLADOS / ..."></label>
-
-      <label class="dc-label">SKU <input id="pSku" class="dc-input" placeholder="Opcional"></label>
-      <label class="dc-label">Marca <input id="pMarca" class="dc-input" placeholder="JBL / SKULLCANDY / ..."></label>
-      <label class="dc-label">Modelo <input id="pModelo" class="dc-input" placeholder="Opcional"></label>
-
-      <label class="dc-label">Condición *
-        <select id="pCondicion" class="dc-input" required>
-          <option>NUEVO</option>
-          <option>CAJA_ABIERTA</option>
-          <option>USADO</option>
-          <option>SIN_CAJA</option>
-        </select>
+      <label class="dc-label">Nombre
+        <div class="dc-suggest-wrap">
+          <input id="pNombre" class="dc-input" placeholder="NOMBRE DEL PRODUCTO" value="${escapeHtml(r?.nombre || "")}">
+          <div class="suggestions"></div>
+        </div>
       </label>
 
-      <label class="dc-label">Estado *
-        <select id="pEstado" class="dc-input" required>
+      <label class="dc-label">Categoría
+        <div class="dc-suggest-wrap">
+          <input id="pCategoria" class="dc-input" placeholder="CATEGORÍA" value="${escapeHtml(r?.categoria || "")}">
+          <div class="suggestions"></div>
+        </div>
+      </label>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+        <label class="dc-label">SKU
+          <input id="pSku" class="dc-input" placeholder="SKU" value="${escapeHtml(r?.sku || "")}">
+        </label>
+        <label class="dc-label">Condición
+          <select id="pCondicion" class="dc-input">
+            <option>NUEVO</option>
+            <option>CAJA_ABIERTA</option>
+            <option>USADO</option>
+            <option>SIN_CAJA</option>
+          </select>
+        </label>
+      </div>
+
+      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+        <label class="dc-label">Marca
+          <div class="dc-suggest-wrap">
+            <input id="pMarca" class="dc-input" placeholder="MARCA" value="${escapeHtml(r?.marca || "")}">
+            <div class="suggestions"></div>
+          </div>
+        </label>
+        <label class="dc-label">Modelo
+          <div class="dc-suggest-wrap">
+            <input id="pModelo" class="dc-input" placeholder="MODELO" value="${escapeHtml(r?.modelo || "")}">
+            <div class="suggestions"></div>
+          </div>
+        </label>
+      </div>
+
+      <label class="dc-label">Estado
+        <select id="pEstado" class="dc-input">
           <option>ACTIVO</option>
           <option>INACTIVO</option>
         </select>
       </label>
 
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <label class="dc-label">Stock * <input id="pStock" class="dc-input" type="number" min="0" value="0" required></label>
-        <label class="dc-label">Stock en tránsito * <input id="pTransito" class="dc-input" type="number" min="0" value="0" required></label>
+      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+        <label class="dc-label">Stock
+          <input id="pStock" class="dc-input" type="number" min="0" step="1" value="${r ? n(r.stock) : 0}">
+        </label>
+        <label class="dc-label">Tránsito
+          <input id="pTransito" class="dc-input" type="number" min="0" step="1" value="${r ? n(r.stock_transito) : 0}">
+        </label>
+        <label class="dc-label">Reservado
+          <input id="pReservado" class="dc-input" type="number" min="0" step="1" value="${r ? n(r.stock_reservado) : 0}">
+        </label>
       </div>
 
-      <label class="dc-label">Stock reservado * <input id="pReservado" class="dc-input" type="number" min="0" value="0" required></label>
-
-      <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <label class="dc-label">Costo Prom * <input id="pCosto" class="dc-input" type="number" min="0" step="0.01" value="0" required></label>
-        <label class="dc-label">Precio * <input id="pPrecio" class="dc-input" type="number" min="0" step="0.01" value="0" required></label>
+      <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:10px;">
+        <label class="dc-label">Costo Prom
+          <input id="pCosto" class="dc-input" type="number" min="0" step="0.01" value="${r ? n(r.costo_prom) : 0}">
+        </label>
+        <label class="dc-label">Precio
+          <input id="pPrecio" class="dc-input" type="number" min="0" step="0.01" value="${r ? n(r.precio) : 0}">
+        </label>
+        <label class="dc-label">Garantía (meses)
+          <input id="pGarantia" class="dc-input" type="number" min="0" step="1" value="${r ? n(r.garantia_meses) : 0}">
+        </label>
       </div>
 
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
-        <label class="dc-label">Garantía (meses) <input id="pGarantia" class="dc-input" type="number" min="0" value="0"></label>
-        <label class="dc-label">Ubicación <input id="pUbicacion" class="dc-input" placeholder="BODEGA / ESTANTE / ..."></label>
+        <label class="dc-label">Ubicación
+          <input id="pUbicacion" class="dc-input" placeholder="BODEGA / ESTANTE / ..." value="${escapeHtml(r?.ubicacion || "")}">
+        </label>
+        <label class="dc-label">Notas
+          <input id="pNotas" class="dc-input" placeholder="Ej: FALTAN ALMOHADILLAS" value="${escapeHtml(r?.notas || "")}">
+        </label>
       </div>
 
-      <label class="dc-label">Notas <input id="pNotas" class="dc-input" placeholder="Ej: FALTAN ALMOHADILLAS"></label>
-
-      <label class="dc-label">Foto <input id="pFoto" class="dc-input" type="file" accept="image/*"></label>
+      <label class="dc-label">Foto
+        <input id="pFoto" class="dc-input" type="file" accept="image/*">
+      </label>
 
       <div style="display:flex; gap:10px; justify-content:flex-end; margin-top:6px;">
         <button class="dc-btn dc-btn-ghost" id="btnCancelDrawer" type="button">Cancelar</button>
@@ -925,7 +790,6 @@ async function refresh(){
    MOUNT
    ========================= */
 export async function mountInventarioGeneral(container){
-  ensureUIStyles();
   container.innerHTML = viewTemplate();
 
   $("#btnNuevo").addEventListener("click", openNew);

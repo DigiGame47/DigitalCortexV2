@@ -6,6 +6,55 @@
   <title>DigitalCortex</title>
   <link rel="stylesheet" href="/css/app.css" />
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,500,0,0" rel="stylesheet">
+  <script>
+    // Cargar tema antes de renderizar
+    (function() {
+      const TEMAS = {
+        oscuro: {
+          "--bg1": "#0b1020",
+          "--bg2": "#111a33",
+          "--card": "rgba(255,255,255,.06)",
+          "--stroke": "rgba(255,255,255,.10)",
+          "--text": "#e9eefc",
+          "--muted": "rgba(233,238,252,.70)"
+        },
+        claro: {
+          "--bg1": "#f5f7fa",
+          "--bg2": "#ffffff",
+          "--card": "rgba(0,0,0,.04)",
+          "--stroke": "rgba(0,0,0,.10)",
+          "--text": "#1a202c",
+          "--muted": "rgba(26,32,44,.70)"
+        },
+        multicolor: {
+          "--bg1": "#0f0f1e",
+          "--bg2": "#1a1a2e",
+          "--card": "rgba(110,231,183,.08)",
+          "--stroke": "rgba(99,102,241,.15)",
+          "--text": "#f0f4ff",
+          "--muted": "rgba(240,244,255,.75)"
+        }
+      };
+
+      const temaSaved = localStorage.getItem("dc_tema") || "oscuro";
+      const tema = TEMAS[temaSaved];
+      
+      if (tema) {
+        Object.entries(tema).forEach(([key, value]) => {
+          document.documentElement.style.setProperty(key, value);
+        });
+      }
+      
+      // Establecer data-tema en body lo antes posible
+      if (document.body) {
+        document.body.dataset.tema = temaSaved;
+      } else {
+        document.addEventListener('DOMContentLoaded', function() {
+          document.body.dataset.tema = temaSaved;
+        });
+      }
+    })();
+  </script>
 </head>
 
 <body>
@@ -151,13 +200,9 @@
 
 </div>
 
-<!-- Sidebar behavior -->
-<script src="/js/layout.js"></script>
-
+<!-- Initialize router BEFORE layout.js -->
 <script type="module">
   import { mountInventarioGeneral } from "/js/inventario.js";
-
-  console.log('[app] main module init');
 
   // ==========================
   // COMPRAS: carga on-demand (caché)
@@ -181,66 +226,106 @@
     return _ventasModulePromise;
   }
 
+  // ==========================
+  // AJUSTES: carga on-demand (caché)
+  // ==========================
+  let _ajustesModulePromise = null;
+  async function loadAjustesModule(){
+    if(!_ajustesModulePromise){
+      _ajustesModulePromise = import('/js/ajustes.js');
+    }
+    return _ajustesModulePromise;
+  }
 
   // ==========================
   // Router simple
   // ==========================
   window.DC = {
-  openView: async (key, title) => {
-    document.getElementById("pageTitle").textContent = title || "Vista";
-    const container = document.getElementById("viewContainer");
-    if (!container) return;
-
-    try {
-      switch (key) {
-        // Inventario
-        case "inventario_general":
-          await mountInventarioGeneral(container);
-          break;
-
-        // Compras
-        case "compras_recepcion":
-          container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Compras...</div>`;
-          const modComprasRec = await loadComprasModule();
-          if (!modComprasRec.mountComprasRecepcion) throw new Error("compras.js no exporta mountComprasRecepcion");
-          await modComprasRec.mountComprasRecepcion(container);
-          break;
-
-        case "compras_seguimiento":
-          container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Compras...</div>`;
-          const modCompraSeg = await loadComprasModule();
-          if (!modCompraSeg.mountComprasSeguimiento) throw new Error("compras.js no exporta mountComprasSeguimiento");
-          await modCompraSeg.mountComprasSeguimiento(container);
-          break;
-
-        // Ventas (3 vistas → mismo mount)
-        case "ventas_pedidos":
-        case "ventas_liquidaciones":
-        case "ventas_devoluciones":
-          container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Ventas...</div>`;
-          const modVentas = await loadVentasModule();
-          if (!modVentas.mountVentas) throw new Error("ventas.js no exporta mountVentas");
-          await modVentas.mountVentas(container);
-          break;
-
-        default:
-          container.innerHTML = `
-            <div class="card" style="padding:14px;">
-              Vista en construcción: <b>${title || key}</b>
-            </div>`;
+    openView: async (key, title) => {
+      console.log('[DC.openView]', { key, title });
+      document.getElementById("pageTitle").textContent = title || "Vista";
+      const container = document.getElementById("viewContainer");
+      if (!container) {
+        console.error('[DC.openView] viewContainer no encontrado');
+        return;
       }
-    } catch (e) {
-      console.error("Error al abrir vista", key, e);
-      container.innerHTML = `
-        <div class="card" style="padding:14px;">
-          <b>Error cargando la vista:</b> ${e.message || e}
-        </div>`;
-    }
-  }
-};
 
-  window.DC.openView("dashboard", "Dashboard");
+      try {
+        switch (key) {
+          // Dashboard
+          case "dashboard":
+            container.innerHTML = `<div class="card" style="padding:14px;"><b>Dashboard</b> - En construcción</div>`;
+            break;
+
+          // Inventario
+          case "inventario_general":
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Inventario...</div>`;
+            console.log('[DC.openView] Cargando inventario_general');
+            await mountInventarioGeneral(container);
+            break;
+
+          // Compras
+          case "compras_recepcion":
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Compras...</div>`;
+            console.log('[DC.openView] Cargando compras_recepcion');
+            const modComprasRec = await loadComprasModule();
+            if (!modComprasRec.mountComprasRecepcion) throw new Error("compras.js no exporta mountComprasRecepcion");
+            await modComprasRec.mountComprasRecepcion(container);
+            break;
+
+          case "compras_seguimiento":
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Compras...</div>`;
+            console.log('[DC.openView] Cargando compras_seguimiento');
+            const modCompraSeg = await loadComprasModule();
+            if (!modCompraSeg.mountComprasSeguimiento) throw new Error("compras.js no exporta mountComprasSeguimiento");
+            await modCompraSeg.mountComprasSeguimiento(container);
+            break;
+
+          // Ventas (3 vistas → mismo mount)
+          case "ventas_pedidos":
+          case "ventas_liquidaciones":
+          case "ventas_devoluciones":
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Ventas...</div>`;
+            console.log('[DC.openView] Cargando ventas (key=' + key + ')');
+            const modVentas = await loadVentasModule();
+            console.log('[DC.openView] Módulo ventas cargado:', { hasMount: !!modVentas?.mountVentas });
+            if (!modVentas.mountVentas) throw new Error("ventas.js no exporta mountVentas");
+            await modVentas.mountVentas(container);
+            console.log('[DC.openView] mountVentas completado');
+            break;
+
+          // Ajustes
+          case "ajustes":
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Ajustes...</div>`;
+            console.log('[DC.openView] Cargando ajustes');
+            const modAjustes = await loadAjustesModule();
+            if (!modAjustes.mountAjustes) throw new Error("ajustes.js no exporta mountAjustes");
+            await modAjustes.mountAjustes(container);
+            console.log('[DC.openView] mountAjustes completado');
+            break;
+
+          default:
+            console.warn('[DC.openView] Key no reconocido:', key);
+            container.innerHTML = `
+              <div class="card" style="padding:14px;">
+                Vista en construcción: <b>${title || key}</b>
+              </div>`;
+        }
+      } catch (e) {
+        console.error("Error al abrir vista", key, e);
+        container.innerHTML = `
+          <div class="card" style="padding:14px;">
+            <b>Error cargando la vista:</b> ${e.message || e}
+          </div>`;
+      }
+    }
+  };
+
+  console.log('[app] Router DC initialized');
 </script>
+
+<!-- Sidebar behavior (after router) -->
+<script src="/js/layout.js"></script>
 
 </body>
 </html>
