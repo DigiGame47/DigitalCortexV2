@@ -13,6 +13,13 @@ let finanzasState = {
     pendiente: 0,
     disponible: 0,
     total: 0
+  },
+  distribuciónFondos: {
+    idCierre: null,
+    fondearCompras: 0,
+    retiroGanancias: 0,
+    reserva: 0,
+    totalDisponible: 0
   }
 };
 
@@ -53,6 +60,13 @@ async function calcularSaldoInicial(fechaInicio) {
       pendiente = pendienteOriginal;
       if (!ultimoCierre.compras_en_periodo) {
         disponible = parseFloat(ultimoCierre.ganancia_disponible) || 0;
+      }
+
+      // Agregar distribución de fondos del período anterior
+      if (ultimoCierre.distribucion_fondos) {
+        const dist = ultimoCierre.distribucion_fondos;
+        // Sumar fondos asignados a compras + reserva
+        disponible = (parseFloat(dist.fondearCompras) || 0) + (parseFloat(dist.reserva) || 0);
       }
     }
 
@@ -368,6 +382,182 @@ async function guardarCierre() {
   }
 }
 
+async function distribuirFondosPorID(cierreId) {
+  try {
+    const cierreDoc = await getDoc(doc(db, 'CIERRES_FINANZAS', cierreId));
+    if (!cierreDoc.exists()) {
+      mostrarMensajeExito('Cierre no encontrado', false);
+      return;
+    }
+    
+    const cierre = cierreDoc.data();
+    cierre.id = cierreId;
+    
+    abrirDistribucionFondos(cierreId, cierre);
+  } catch (err) {
+    console.error('Error obteniendo cierre:', err);
+    mostrarMensajeExito('Error al cargar cierre', false);
+  }
+}
+
+async function abrirDistribucionFondos(cierreId, cierre) {
+  try {
+    // Calcular total disponible a distribuir
+    const gananciaDisponible = parseFloat(cierre.ganancia_disponible) || 0;
+    const saldoDisponible = parseFloat(cierre.saldo_inicial_disponible) || 0;
+    const totalDisponible = gananciaDisponible + saldoDisponible;
+
+    finanzasState.distribuciónFondos.idCierre = cierreId;
+    finanzasState.distribuciónFondos.totalDisponible = totalDisponible;
+
+    // Cargar distribución anterior si existe
+    const distribucionAnterior = cierre.distribucion_fondos || null;
+
+    // Mostrar modal de distribución
+    const modalHTML = `
+      <div id="modalDistribucion" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;">
+        <div style="background:#fff;border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+          <h2 style="margin:0 0 20px 0;color:#333;font-size:18px;display:flex;align-items:center;gap:8px;">
+            💰 Distribuir Fondos - ${cierre.periodo}
+          </h2>
+
+          <div style="background:#f9f9f9;padding:14px;border-radius:8px;margin-bottom:20px;border-left:4px solid #2196f3;">
+            <div style="font-size:11px;color:#666;margin-bottom:4px;">Total disponible a distribuir:</div>
+            <div style="font-size:24px;font-weight:700;color:#2196f3;">$${money(totalDisponible)}</div>
+            <div style="font-size:10px;color:#999;margin-top:8px;">
+              Ganancia: $${money(gananciaDisponible)} + Saldo anterior: $${money(saldoDisponible)}
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
+            <div style="background:#fff;padding:14px;border-radius:8px;border:2px solid #4caf50;">
+              <label style="display:block;font-size:11px;font-weight:600;color:#4caf50;margin-bottom:8px;">
+                🏦 Fondear Cuenta para Compras
+              </label>
+              <input type="number" id="fondearCompras" placeholder="0.00" step="0.01" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:12px;box-sizing:border-box;" value="${distribucionAnterior?.fondearCompras || 0}"/>
+              <div style="font-size:9px;color:#999;margin-top:4px;">Se usa en próximo período</div>
+            </div>
+
+            <div style="background:#fff;padding:14px;border-radius:8px;border:2px solid #f44336;">
+              <label style="display:block;font-size:11px;font-weight:600;color:#f44336;margin-bottom:8px;">
+                💸 Retiro de Ganancias
+              </label>
+              <input type="number" id="retiroGanancias" placeholder="0.00" step="0.01" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:12px;box-sizing:border-box;" value="${distribucionAnterior?.retiroGanancias || 0}"/>
+              <div style="font-size:9px;color:#999;margin-top:4px;">Sale del negocio</div>
+            </div>
+
+            <div style="background:#fff;padding:14px;border-radius:8px;border:2px solid #ff9800;grid-column:1/-1;">
+              <label style="display:block;font-size:11px;font-weight:600;color:#ff9800;margin-bottom:8px;">
+                🔒 Reserva
+              </label>
+              <input type="number" id="reserva" placeholder="0.00" step="0.01" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:12px;box-sizing:border-box;" value="${distribucionAnterior?.reserva || 0}" readonly/>
+              <div style="font-size:9px;color:#999;margin-top:4px;">Se calcula automáticamente. Será saldo inicial del próximo período</div>
+            </div>
+          </div>
+
+          <div style="background:linear-gradient(135deg,#e3f2fd 0%,#f3e5f5 100%);padding:14px;border-radius:8px;margin-bottom:20px;border:1px solid #bbdefb;">
+            <div style="font-size:10px;color:#666;margin-bottom:8px;font-weight:600;">📊 RESUMEN DE DISTRIBUCIÓN:</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:11px;">
+              <div style="background:#fff;padding:8px;border-radius:4px;border-left:3px solid #4caf50;">
+                <div style="color:#999;font-size:9px;">Compras</div>
+                <div id="montoFondear" style="font-weight:700;color:#4caf50;">$0.00</div>
+              </div>
+              <div style="background:#fff;padding:8px;border-radius:4px;border-left:3px solid #f44336;">
+                <div style="color:#999;font-size:9px;">Retiros</div>
+                <div id="montoRetiro" style="font-weight:700;color:#f44336;">$0.00</div>
+              </div>
+              <div style="background:#fff;padding:8px;border-radius:4px;border-left:3px solid #ff9800;">
+                <div style="color:#999;font-size:9px;">Reserva</div>
+                <div id="montoReserva" style="font-weight:700;color:#ff9800;">$0.00</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="display:flex;gap:8px;justify-content:flex-end;">
+            <button onclick="cerrarModalDistribucion()" style="padding:10px 16px;background:#e0e0e0;color:#333;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:11px;">Cancelar</button>
+            <button onclick="guardarDistribucionFondos()" style="padding:10px 16px;background:#4caf50;color:#fff;border:none;border-radius:4px;cursor:pointer;font-weight:600;font-size:11px;">✓ Guardar Distribución</button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    // Agregar modal al DOM
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Agregar event listeners para calcular reserva automáticamente
+    document.getElementById('fondearCompras').addEventListener('input', calcularReservaDinamica);
+    document.getElementById('retiroGanancias').addEventListener('input', calcularReservaDinamica);
+
+    // Calcular inicial
+    calcularReservaDinamica();
+
+  } catch (err) {
+    console.error('Error abriendo distribución de fondos:', err);
+    alert('Error: ' + err.message);
+  }
+}
+
+function calcularReservaDinamica() {
+  const totalDisponible = finanzasState.distribuciónFondos.totalDisponible;
+  const fondear = parseFloat(document.getElementById('fondearCompras').value) || 0;
+  const retiro = parseFloat(document.getElementById('retiroGanancias').value) || 0;
+  const reserva = Math.max(0, totalDisponible - fondear - retiro);
+
+  document.getElementById('reserva').value = reserva.toFixed(2);
+  
+  // Actualizar resumen visual
+  document.getElementById('montoFondear').textContent = '$' + money(fondear);
+  document.getElementById('montoRetiro').textContent = '$' + money(retiro);
+  document.getElementById('montoReserva').textContent = '$' + money(reserva);
+
+  // Validar que no se distribuya más de lo disponible
+  if (fondear + retiro > totalDisponible) {
+    document.getElementById('montoReserva').style.color = '#f44336';
+    document.querySelector('button:contains("Guardar")') && (document.querySelector('button:contains("Guardar")').disabled = true);
+  } else {
+    document.getElementById('montoReserva').style.color = '#ff9800';
+  }
+}
+
+function cerrarModalDistribucion() {
+  const modal = document.getElementById('modalDistribucion');
+  if (modal) modal.remove();
+}
+
+async function guardarDistribucionFondos() {
+  try {
+    const cierreId = finanzasState.distribuciónFondos.idCierre;
+    const fondear = parseFloat(document.getElementById('fondearCompras').value) || 0;
+    const retiro = parseFloat(document.getElementById('retiroGanancias').value) || 0;
+    const reserva = parseFloat(document.getElementById('reserva').value) || 0;
+
+    if (!cierreId) {
+      mostrarMensajeExito('Error: No se encontró el cierre', false);
+      return;
+    }
+
+    // Guardar distribución en el cierre
+    const distribucion = {
+      fondearCompras: fondear,
+      retiroGanancias: retiro,
+      reserva: reserva,
+      fechaDistribucion: new Date().toISOString().split('T')[0]
+    };
+
+    await updateDoc(doc(db, 'CIERRES_FINANZAS', cierreId), {
+      distribucion_fondos: distribucion
+    });
+
+    mostrarMensajeExito('✓ Distribución de fondos guardada correctamente', true);
+    cerrarModalDistribucion();
+    cargarCierresHistoricos();
+
+  } catch (err) {
+    console.error('Error guardando distribución de fondos:', err);
+    mostrarMensajeExito('Error: ' + err.message, false);
+  }
+}
+
 async function cargarCierresHistoricos() {
   try {
     const snap = await getDocs(collection(db, 'CIERRES_FINANZAS'));
@@ -433,9 +623,10 @@ async function cargarCierresHistoricos() {
         <div style="padding:12px 10px;border-right:1px solid #eee;color:#666;">$${money(cierre.gastos_operativos_reales)}</div>
         <div style="padding:12px 10px;border-right:1px solid #eee;font-weight:600;color:#666;">${cierre.cant_ventas || 0}</div>
         <div style="padding:12px 10px;border-right:1px solid #eee;color:${colorEstado};font-weight:700;">${textoEstado}</div>
-        <div style="padding:12px 10px;display:flex;gap:6px;justify-content:center;align-items:center;">
-          <button style="background:#2196f3;color:#fff;border:none;padding:6px 12px;cursor:pointer;font-size:10px;font-weight:600;border-radius:4px;transition:background 0.2s;" onmouseover="this.style.background='#1976d2'" onmouseout="this.style.background='#2196f3'" onclick="editarCierre('${cierre.id}')">✎ Editar</button>
-          <button style="background:#f44336;color:#fff;border:none;padding:6px 12px;cursor:pointer;font-size:10px;font-weight:600;border-radius:4px;transition:background 0.2s;" onmouseover="this.style.background='#d32f2f'" onmouseout="this.style.background='#f44336'" onclick="eliminarCierre('${cierre.id}')">⏹ Eliminar</button>
+        <div style="padding:12px 8px;display:flex;gap:3px;justify-content:center;align-items:center;flex-wrap:wrap;">
+          <button style="background:#2196f3;color:#fff;border:none;padding:5px 7px;cursor:pointer;font-size:8px;font-weight:600;border-radius:3px;transition:background 0.2s;white-space:nowrap;" onmouseover="this.style.background='#1976d2'" onmouseout="this.style.background='#2196f3'" onclick="distribuirFondosPorID('${cierre.id}')">💵 Dist</button>
+          <button style="background:#ff9800;color:#fff;border:none;padding:5px 7px;cursor:pointer;font-size:8px;font-weight:600;border-radius:3px;transition:background 0.2s;white-space:nowrap;" onmouseover="this.style.background='#f57c00'" onmouseout="this.style.background='#ff9800'" onclick="editarCierre('${cierre.id}')">✎ Edit</button>
+          <button style="background:#f44336;color:#fff;border:none;padding:5px 7px;cursor:pointer;font-size:8px;font-weight:600;border-radius:3px;transition:background 0.2s;white-space:nowrap;" onmouseover="this.style.background='#d32f2f'" onmouseout="this.style.background='#f44336'" onclick="eliminarCierre('${cierre.id}')">⏹ Del</button>
         </div>
       `;
 
@@ -774,7 +965,7 @@ function mountFinanzas(container) {
           </label>
         </div>
         <div id="tablaCierres" style="border-radius:6px;overflow:hidden;border:1px solid #ddd;font-size:11px;width:100%;overflow-x:auto;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,0.05);">
-          <div style="display:grid;grid-template-columns:1fr 0.9fr 0.9fr 0.9fr 0.9fr 1fr 0.9fr 0.9fr 1fr 0.9fr 0.8fr 0.8fr 1.2fr;gap:0;background:#f8f8f8;">
+          <div style="display:grid;grid-template-columns:1fr 0.9fr 0.9fr 0.9fr 0.9fr 1fr 0.9fr 0.9fr 1fr 0.9fr 0.8fr 0.8fr 1.8fr;gap:0;background:#f8f8f8;">
             <div style="background:#f0f0f0;padding:12px 10px;font-weight:700;color:#333;border-right:1px solid #ddd;border-bottom:2px solid #2196f3;">PERÍODO</div>
             <div style="background:#f0f0f0;padding:12px 10px;font-weight:700;color:#333;border-right:1px solid #ddd;border-bottom:2px solid #2196f3;">FECHA</div>
             <div style="background:#f0f0f0;padding:12px 10px;font-weight:700;color:#333;border-right:1px solid #ddd;border-bottom:2px solid #2196f3;">ESPERADO</div>
@@ -802,6 +993,10 @@ function mountFinanzas(container) {
   // Exponer funciones al scope global para que funcionen los onclick del HTML
   window.editarCierre = editarCierre;
   window.eliminarCierre = eliminarCierre;
+  window.distribuirFondosPorID = distribuirFondosPorID;
+  window.cerrarModalDistribucion = cerrarModalDistribucion;
+  window.guardarDistribucionFondos = guardarDistribucionFondos;
+  window.calcularReservaDinamica = calcularReservaDinamica;
   
   // Inicializar fechas por defecto
   inicializarFechasDefault();
