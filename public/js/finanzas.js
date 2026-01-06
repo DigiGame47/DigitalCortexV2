@@ -65,8 +65,10 @@ async function calcularSaldoInicial(fechaInicio) {
       // Agregar distribución de fondos del período anterior
       if (ultimoCierre.distribucion_fondos) {
         const dist = ultimoCierre.distribucion_fondos;
-        // Sumar fondos asignados a compras + reserva
+        // El disponible es: fondos para compras + reserva ganancia
         disponible = (parseFloat(dist.fondearCompras) || 0) + (parseFloat(dist.reserva) || 0);
+        // El pendiente es: pendiente congelado del período anterior
+        pendiente = parseFloat(dist.pendienteLiquidarCongelado) || 0;
       }
     }
 
@@ -402,13 +404,23 @@ async function distribuirFondosPorID(cierreId) {
 
 async function abrirDistribucionFondos(cierreId, cierre) {
   try {
-    // Calcular total disponible a distribuir
+    // Calcular disponibles por categoría
     const gananciaDisponible = parseFloat(cierre.ganancia_disponible) || 0;
-    const saldoDisponible = parseFloat(cierre.saldo_inicial_disponible) || 0;
-    const totalDisponible = gananciaDisponible + saldoDisponible;
+    const costoInventario = parseFloat(cierre.costo_inventario_reservado) || 0;
+    const pendienteLiquidar = parseFloat(cierre.ventas_pendientes_reales) || 0;
+    const saldoDisponibleAnterior = parseFloat(cierre.saldo_inicial_disponible) || 0;
+
+    // Total a distribuir (sin incluir pendientes que se congelan)
+    const totalGanancia = gananciaDisponible + saldoDisponibleAnterior;
+    const totalCompras = costoInventario;
+    const totalDisponible = totalGanancia + totalCompras;
 
     finanzasState.distribuciónFondos.idCierre = cierreId;
     finanzasState.distribuciónFondos.totalDisponible = totalDisponible;
+    finanzasState.distribuciónFondos.gananciaDisponible = gananciaDisponible;
+    finanzasState.distribuciónFondos.saldoDisponibleAnterior = saldoDisponibleAnterior;
+    finanzasState.distribuciónFondos.costoInventario = costoInventario;
+    finanzasState.distribuciónFondos.pendienteLiquidar = pendienteLiquidar;
 
     // Cargar distribución anterior si existe
     const distribucionAnterior = cierre.distribucion_fondos || null;
@@ -416,60 +428,93 @@ async function abrirDistribucionFondos(cierreId, cierre) {
     // Mostrar modal de distribución
     const modalHTML = `
       <div id="modalDistribucion" style="position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;">
-        <div style="background:#fff;border-radius:12px;padding:24px;max-width:600px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
+        <div style="background:#fff;border-radius:12px;padding:24px;max-width:700px;width:90%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.15);">
           <h2 style="margin:0 0 20px 0;color:#333;font-size:18px;display:flex;align-items:center;gap:8px;">
             💰 Distribuir Fondos - ${cierre.periodo}
           </h2>
 
-          <div style="background:#f9f9f9;padding:14px;border-radius:8px;margin-bottom:20px;border-left:4px solid #2196f3;">
-            <div style="font-size:11px;color:#666;margin-bottom:4px;">Total disponible a distribuir:</div>
-            <div style="font-size:24px;font-weight:700;color:#2196f3;">$${money(totalDisponible)}</div>
-            <div style="font-size:10px;color:#999;margin-top:8px;">
-              Ganancia: $${money(gananciaDisponible)} + Saldo anterior: $${money(saldoDisponible)}
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px;">
+            <div style="background:linear-gradient(135deg,#4caf50 0%,#388e3c 100%);color:#fff;padding:12px;border-radius:8px;">
+              <div style="font-size:10px;opacity:0.9;margin-bottom:4px;">📦 Costo Inventario (Pendiente)</div>
+              <div style="font-size:18px;font-weight:700;">$${money(costoInventario)}</div>
+              <div style="font-size:9px;opacity:0.8;">Sugerir → Fondear Compras</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#2196f3 0%,#1976d2 100%);color:#fff;padding:12px;border-radius:8px;">
+              <div style="font-size:10px;opacity:0.9;margin-bottom:4px;">💰 Ganancia Disponible</div>
+              <div style="font-size:18px;font-weight:700;">$${money(totalGanancia)}</div>
+              <div style="font-size:9px;opacity:0.8;">A distribuir</div>
+            </div>
+            <div style="background:linear-gradient(135deg,#ff9800 0%,#f57c00 100%);color:#fff;padding:12px;border-radius:8px;grid-column:1/-1;">
+              <div style="font-size:10px;opacity:0.9;margin-bottom:4px;">⏳ Pendiente de Liquidar (Congelado)</div>
+              <div style="font-size:18px;font-weight:700;">$${money(pendienteLiquidar)}</div>
+              <div style="font-size:9px;opacity:0.8;">Pasa automáticamente al siguiente período</div>
             </div>
           </div>
 
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-            <div style="background:#fff;padding:14px;border-radius:8px;border:2px solid #4caf50;">
-              <label style="display:block;font-size:11px;font-weight:600;color:#4caf50;margin-bottom:8px;">
+          <div style="background:#f5f5f5;padding:14px;border-radius:8px;margin-bottom:20px;border-left:4px solid #666;">
+            <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:12px;">📊 DISTRIBUCIÓN DE FONDOS</div>
+            
+            <div style="margin-bottom:16px;">
+              <label style="display:block;font-size:10px;font-weight:600;color:#4caf50;margin-bottom:8px;">
                 🏦 Fondear Cuenta para Compras
               </label>
-              <input type="number" id="fondearCompras" placeholder="0.00" step="0.01" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:12px;box-sizing:border-box;" value="${distribucionAnterior?.fondearCompras || 0}"/>
-              <div style="font-size:9px;color:#999;margin-top:4px;">Se usa en próximo período</div>
+              <div style="background:#fff;padding:10px;border-radius:6px;border:1px solid #ddd;">
+                <input type="number" id="fondearCompras" placeholder="0.00" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:4px;font-size:11px;box-sizing:border-box;margin-bottom:6px;" value="${distribucionAnterior?.fondearCompras || costoInventario}"/>
+                <div style="font-size:9px;color:#999;">
+                  <div>Sugerencia: $${money(costoInventario)} (costo de inventario)</div>
+                  <div>Se usa para financiar compras en próximo período</div>
+                </div>
+              </div>
             </div>
 
-            <div style="background:#fff;padding:14px;border-radius:8px;border:2px solid #f44336;">
-              <label style="display:block;font-size:11px;font-weight:600;color:#f44336;margin-bottom:8px;">
+            <div style="margin-bottom:16px;">
+              <label style="display:block;font-size:10px;font-weight:600;color:#f44336;margin-bottom:8px;">
                 💸 Retiro de Ganancias
               </label>
-              <input type="number" id="retiroGanancias" placeholder="0.00" step="0.01" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:12px;box-sizing:border-box;" value="${distribucionAnterior?.retiroGanancias || 0}"/>
-              <div style="font-size:9px;color:#999;margin-top:4px;">Sale del negocio</div>
+              <div style="background:#fff;padding:10px;border-radius:6px;border:1px solid #ddd;">
+                <input type="number" id="retiroGanancias" placeholder="0.00" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:4px;font-size:11px;box-sizing:border-box;margin-bottom:6px;" value="${distribucionAnterior?.retiroGanancias || 0}"/>
+                <div style="font-size:9px;color:#999;">
+                  Máximo disponible: $${money(totalGanancia)}
+                </div>
+              </div>
             </div>
 
-            <div style="background:#fff;padding:14px;border-radius:8px;border:2px solid #ff9800;grid-column:1/-1;">
-              <label style="display:block;font-size:11px;font-weight:600;color:#ff9800;margin-bottom:8px;">
-                🔒 Reserva
+            <div style="margin-bottom:16px;">
+              <label style="display:block;font-size:10px;font-weight:600;color:#ff9800;margin-bottom:8px;">
+                🔒 Reserva (Se calcula automáticamente)
               </label>
-              <input type="number" id="reserva" placeholder="0.00" step="0.01" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:4px;font-size:12px;box-sizing:border-box;" value="${distribucionAnterior?.reserva || 0}" readonly/>
-              <div style="font-size:9px;color:#999;margin-top:4px;">Se calcula automáticamente. Será saldo inicial del próximo período</div>
+              <div style="background:#fff;padding:10px;border-radius:6px;border:1px solid #ddd;">
+                <input type="number" id="reserva" placeholder="0.00" step="0.01" style="width:100%;padding:8px;border:1px solid #e0e0e0;border-radius:4px;font-size:11px;box-sizing:border-box;" value="${distribucionAnterior?.reserva || 0}" readonly/>
+                <div style="font-size:9px;color:#999;">
+                  Será parte del saldo inicial del próximo período
+                </div>
+              </div>
             </div>
           </div>
 
           <div style="background:linear-gradient(135deg,#e3f2fd 0%,#f3e5f5 100%);padding:14px;border-radius:8px;margin-bottom:20px;border:1px solid #bbdefb;">
-            <div style="font-size:10px;color:#666;margin-bottom:8px;font-weight:600;">📊 RESUMEN DE DISTRIBUCIÓN:</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:11px;">
-              <div style="background:#fff;padding:8px;border-radius:4px;border-left:3px solid #4caf50;">
-                <div style="color:#999;font-size:9px;">Compras</div>
-                <div id="montoFondear" style="font-weight:700;color:#4caf50;">$0.00</div>
+            <div style="font-size:11px;font-weight:600;color:#333;margin-bottom:10px;">📈 RESUMEN FINAL (Próximo Período):</div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:10px;margin-bottom:10px;">
+              <div style="background:#fff;padding:10px;border-radius:4px;border-left:3px solid #4caf50;">
+                <div style="color:#666;font-weight:600;">🏦 Para Compras</div>
+                <div id="montoFondear" style="font-weight:700;color:#4caf50;font-size:13px;">$0.00</div>
               </div>
-              <div style="background:#fff;padding:8px;border-radius:4px;border-left:3px solid #f44336;">
-                <div style="color:#999;font-size:9px;">Retiros</div>
-                <div id="montoRetiro" style="font-weight:700;color:#f44336;">$0.00</div>
+              <div style="background:#fff;padding:10px;border-radius:4px;border-left:3px solid #ff9800;">
+                <div style="color:#666;font-weight:600;">🔒 Reserva Ganancia</div>
+                <div id="montoReserva" style="font-weight:700;color:#ff9800;font-size:13px;">$0.00</div>
               </div>
-              <div style="background:#fff;padding:8px;border-radius:4px;border-left:3px solid #ff9800;">
-                <div style="color:#999;font-size:9px;">Reserva</div>
-                <div id="montoReserva" style="font-weight:700;color:#ff9800;">$0.00</div>
+              <div style="background:#fff;padding:10px;border-radius:4px;border-left:3px solid #2196f3;">
+                <div style="color:#666;font-weight:600;">⏳ Pendientes Congelados</div>
+                <div id="montoPendiente" style="font-weight:700;color:#2196f3;font-size:13px;">$${money(pendienteLiquidar)}</div>
               </div>
+              <div style="background:#fff;padding:10px;border-radius:4px;border-left:3px solid #f44336;">
+                <div style="color:#666;font-weight:600;">💸 Retiros (Sale)</div>
+                <div id="montoRetiro" style="font-weight:700;color:#f44336;font-size:13px;">$0.00</div>
+              </div>
+            </div>
+            <div style="background:#fff;padding:10px;border-radius:4px;border-top:2px solid #ddd;margin-top:10px;text-align:right;">
+              <div style="color:#666;font-size:9px;margin-bottom:4px;">TOTAL SALDO INICIAL SIGUIENTE PERÍODO</div>
+              <div id="totalSaldoSiguiente" style="font-weight:700;color:#1976d2;font-size:16px;">$0.00</div>
             </div>
           </div>
 
@@ -498,24 +543,39 @@ async function abrirDistribucionFondos(cierreId, cierre) {
 }
 
 function calcularReservaDinamica() {
-  const totalDisponible = finanzasState.distribuciónFondos.totalDisponible;
   const fondear = parseFloat(document.getElementById('fondearCompras').value) || 0;
   const retiro = parseFloat(document.getElementById('retiroGanancias').value) || 0;
-  const reserva = Math.max(0, totalDisponible - fondear - retiro);
-
-  document.getElementById('reserva').value = reserva.toFixed(2);
+  
+  const gananciaDisponible = finanzasState.distribuciónFondos.gananciaDisponible;
+  const saldoDisponibleAnterior = finanzasState.distribuciónFondos.saldoDisponibleAnterior;
+  const costoInventario = finanzasState.distribuciónFondos.costoInventario;
+  const pendienteLiquidar = finanzasState.distribuciónFondos.pendienteLiquidar;
+  
+  const totalGanancia = gananciaDisponible + saldoDisponibleAnterior;
+  
+  // La reserva es lo que queda de la ganancia después de retirar
+  const reservaGanancia = Math.max(0, totalGanancia - retiro);
+  
+  // Actualizar campo readonly de reserva
+  document.getElementById('reserva').value = reservaGanancia.toFixed(2);
   
   // Actualizar resumen visual
   document.getElementById('montoFondear').textContent = '$' + money(fondear);
+  document.getElementById('montoReserva').textContent = '$' + money(reservaGanancia);
   document.getElementById('montoRetiro').textContent = '$' + money(retiro);
-  document.getElementById('montoReserva').textContent = '$' + money(reserva);
-
-  // Validar que no se distribuya más de lo disponible
-  if (fondear + retiro > totalDisponible) {
-    document.getElementById('montoReserva').style.color = '#f44336';
-    document.querySelector('button:contains("Guardar")') && (document.querySelector('button:contains("Guardar")').disabled = true);
+  document.getElementById('montoPendiente').textContent = '$' + money(pendienteLiquidar);
+  
+  // Calcular total saldo inicial para siguiente período
+  const totalSaldoSiguiente = fondear + reservaGanancia + pendienteLiquidar;
+  document.getElementById('totalSaldoSiguiente').textContent = '$' + money(totalSaldoSiguiente);
+  
+  // Validar que no se retire más de lo disponible en ganancia
+  if (retiro > totalGanancia) {
+    document.getElementById('montoRetiro').style.color = '#f44336';
+    document.getElementById('totalSaldoSiguiente').style.color = '#f44336';
   } else {
-    document.getElementById('montoReserva').style.color = '#ff9800';
+    document.getElementById('montoRetiro').style.color = '#f44336';
+    document.getElementById('totalSaldoSiguiente').style.color = '#1976d2';
   }
 }
 
@@ -530,6 +590,8 @@ async function guardarDistribucionFondos() {
     const fondear = parseFloat(document.getElementById('fondearCompras').value) || 0;
     const retiro = parseFloat(document.getElementById('retiroGanancias').value) || 0;
     const reserva = parseFloat(document.getElementById('reserva').value) || 0;
+    
+    const pendienteLiquidar = finanzasState.distribuciónFondos.pendienteLiquidar;
 
     if (!cierreId) {
       mostrarMensajeExito('Error: No se encontró el cierre', false);
@@ -541,6 +603,7 @@ async function guardarDistribucionFondos() {
       fondearCompras: fondear,
       retiroGanancias: retiro,
       reserva: reserva,
+      pendienteLiquidarCongelado: pendienteLiquidar,
       fechaDistribucion: new Date().toISOString().split('T')[0]
     };
 
