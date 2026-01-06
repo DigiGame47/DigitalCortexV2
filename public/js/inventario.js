@@ -15,6 +15,7 @@ const state = {
   filtered: [],
   selectedId: null,     // fila seleccionada
   mode: "details",      // "details" | "edit" | "new"
+  filters: {},          // filtros de columnas activos
 };
 
 function n(v){ return Number(v || 0); }
@@ -52,28 +53,55 @@ function viewTemplate(){
 
         <div style="display:flex;gap:10px;align-items:center;">
           <button id="btnNuevo" class="dc-btn">+ Nuevo</button>
+          <button id="btnDescargarCsv" class="dc-btn dc-btn-ghost" title="Descargar plantilla CSV">⬇ Plantilla</button>
+          <button id="btnCargarCsv" class="dc-btn dc-btn-ghost" title="Cargar CSV">⬆ Cargar CSV</button>
           <button id="btnRefrescar" class="dc-btn dc-btn-ghost">Refrescar</button>
+          <button id="btnToggleDrawer" class="dc-btn dc-btn-ghost" title="Minimizar/Expandir panel de detalles">▼ Detalles</button>
         </div>
       </div>
 
       <div style="margin-top:12px;" class="dc-table-wrap">
+        <div id="cellSumIndicator" class="cell-sum-indicator" style="display:none;"></div>
         <table class="dc-table">
           <thead>
             <tr>
               <th>Foto</th>
-              <th>SKU</th>
-              <th>Producto</th>
-              <th>CLAVE</th>
-              <th>Categoría</th>
-              <th>Condición</th>
-              <th>Estado</th>
+              <th class="th-filterable" data-col="sku">
+                SKU
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="nombre">
+                Producto
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="clave">
+                CLAVE
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="categoria">
+                Categoría
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="condicion">
+                Condición
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="estado">
+                Estado
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
               <th style="text-align:right;">Stock</th>
               <th style="text-align:right;">Tránsito</th>
               <th style="text-align:right;">Reservado</th>
               <th style="text-align:right;">Proyectado</th>
               <th style="text-align:right;">Costo Prom</th>
               <th style="text-align:right;">Precio</th>
-              <th>Acciones</th>
             </tr>
           </thead>
           <tbody id="invTbody"></tbody>
@@ -95,11 +123,35 @@ function viewTemplate(){
    DATA
    ========================= */
 async function loadProductos(){
-  // ✅ CAMBIO: cargar TODOS, no solo stock_proyectado > 0
+  // Cargar TODOS los productos
   const snap = await getDocs(collection(db, "productos"));
-
   const rows = [];
   snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+
+  // Cargar TODAS las ventas para calcular reservas
+  const ventasSnap = await getDocs(collection(db, "VENTAS"));
+  const ventasPorProducto = {};
+  
+  ventasSnap.forEach(doc => {
+    const venta = doc.data();
+    // Contar solo ventas pendientes (PEDIDO PROGRAMADO)
+    if (venta.estado_venta === "PEDIDO PROGRAMADO") {
+      const prodId = venta.producto_id;
+      if (!ventasPorProducto[prodId]) {
+        ventasPorProducto[prodId] = 0;
+      }
+      ventasPorProducto[prodId]++;
+    }
+  });
+
+  // Actualizar cada producto con las ventas pendientes
+  rows.forEach(row => {
+    const ventasPendientes = ventasPorProducto[row.id] || 0;
+    // Stock reservado = reservado manual + ventas pendientes
+    row.stock_reservado = n(row.stock_reservado || 0) + ventasPendientes;
+    // Stock proyectado = stock - transito - reservado
+    row.stock_proyectado = n(row.stock || 0) - n(row.stock_transito || 0) - n(row.stock_reservado || 0);
+  });
 
   state.rows = rows;
   state.filtered = rows;
@@ -119,11 +171,292 @@ function renderFilters(){
     cats.map(c => `<option>${c}</option>`).join("");
 }
 
+
+/* ===========================
+   CELL SELECTION & SUM
+   =========================== */
+const cellSelection = {
+  selected: new Set(),
+  lastSelected: null,
+  
+  init(tbody) {
+    tbody.querySelectorAll(".cell-num, .cell-text").forEach(cell => {
+      cell.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.handleCellClick(cell, e);
+      });
+      cell.style.cursor = "cell";
+    });
+  },
+  
+  handleCellClick(cell, e) {
+    const rowId = cell.dataset.row;
+    
+    if (e.ctrlKey || e.metaKey) {
+      const key = this.getCellKey(cell);
+      if (this.selected.has(key)) {
+        this.selected.delete(key);
+        cell.classList.remove("cell-selected");
+      } else {
+        this.selected.add(key);
+        cell.classList.add("cell-selected");
+      }
+    } else if (e.shiftKey && this.lastSelected) {
+      this.selectRange(this.lastSelected, cell);
+    } else {
+      this.clearSelection();
+      const key = this.getCellKey(cell);
+      this.selected.add(key);
+      cell.classList.add("cell-selected");
+      this.lastSelected = cell;
+      if (rowId) {
+        state.selectedId = rowId;
+        state.mode = "details";
+        renderDrawer();
+      }
+    }
+    this.updateSum();
+  },
+  
+  getCellKey(cell) {
+    return `${cell.dataset.row}|${cell.dataset.col}`;
+  },
+  
+  selectRange(from, to) {
+    const tbody = document.querySelector("tbody#invTbody");
+    if (!tbody) return;
+    
+    const fromRow = Array.from(tbody.querySelectorAll(".dc-row")).findIndex(r => r.dataset.id === from.dataset.row);
+    const toRow = Array.from(tbody.querySelectorAll(".dc-row")).findIndex(r => r.dataset.id === to.dataset.row);
+    
+    const startRow = Math.min(fromRow, toRow);
+    const endRow = Math.max(fromRow, toRow);
+    
+    this.clearSelection();
+    
+    const rows = Array.from(tbody.querySelectorAll(".dc-row"));
+    for (let i = startRow; i <= endRow; i++) {
+      const row = rows[i];
+      const cells = row.querySelectorAll(".cell-num, .cell-text");
+      cells.forEach(cell => {
+        const key = this.getCellKey(cell);
+        this.selected.add(key);
+        cell.classList.add("cell-selected");
+      });
+    }
+  },
+  
+  clearSelection() {
+    document.querySelectorAll(".cell-selected").forEach(cell => {
+      cell.classList.remove("cell-selected");
+    });
+    this.selected.clear();
+  },
+  
+  updateSum() {
+    const tbody = document.querySelector("tbody#invTbody");
+    if (!tbody) return;
+    
+    let total = 0;
+    let count = 0;
+    
+    this.selected.forEach(key => {
+      const [rowId, col] = key.split("|");
+      const cell = tbody.querySelector(`[data-row="${rowId}"][data-col="${col}"]`);
+      if (cell && cell.classList.contains("cell-num")) {
+        const value = parseFloat(cell.dataset.value) || 0;
+        total += value;
+        count++;
+      }
+    });
+    
+    const indicator = document.getElementById("cellSumIndicator");
+    if (indicator) {
+      if (count > 0) {
+        indicator.innerHTML = `<strong>Suma: $${total.toFixed(2)}</strong> (${count} celdas)`;
+        indicator.style.display = "block";
+      } else {
+        indicator.style.display = "none";
+      }
+    }
+  }
+};
+
+/* ===========================
+   COLUMN FILTERS
+   =========================== */
+function getColumnValues(col) {
+  const values = new Set();
+  state.rows.forEach(r => {
+    let val = "";
+    switch(col) {
+      case "sku": val = r.sku || ""; break;
+      case "nombre": val = r.nombre || ""; break;
+      case "clave": val = r.external_key || ""; break;
+      case "categoria": val = r.categoria || ""; break;
+      case "condicion": val = r.condicion || ""; break;
+      case "estado": val = r.estado || ""; break;
+    }
+    if (val) values.add(val);
+  });
+  return Array.from(values).sort();
+}
+
+function applyColumnFilter(col, value) {
+  if (value === "") {
+    delete state.filters[col];
+  } else {
+    state.filters[col] = value;
+  }
+  
+  applyFilters();
+}
+
+function bindColumnFilters() {
+  setTimeout(() => {
+    const filterHeaders = document.querySelectorAll(".th-filterable");
+    
+    filterHeaders.forEach(th => {
+      const col = th.dataset.col;
+      const icon = th.querySelector(".filter-icon");
+      const dropdown = th.querySelector(".filter-dropdown");
+      
+      if (!icon || !dropdown) return;
+      
+      const newIcon = icon.cloneNode(true);
+      icon.parentNode.replaceChild(newIcon, icon);
+      
+      newIcon.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        document.querySelectorAll(".filter-dropdown").forEach(d => {
+          if (d !== dropdown) d.style.display = "none";
+        });
+        
+        const isOpen = dropdown.style.display !== "none" && dropdown.style.display !== "";
+        
+        if (!isOpen) {
+          const values = getColumnValues(col);
+          const current = state.filters?.[col] || "";
+          
+          dropdown.innerHTML = `
+            <div style="padding:8px;">
+              <div class="filter-option ${current === "" ? "active" : ""}" data-value="">
+                ✓ Todos
+              </div>
+              ${values.map(v => `
+                <div class="filter-option ${current === v ? "active" : ""}" data-value="${v}">
+                  ✓ ${v}
+                </div>
+              `).join("")}
+            </div>
+          `;
+          
+          dropdown.querySelectorAll(".filter-option").forEach(opt => {
+            opt.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const value = opt.dataset.value;
+              applyColumnFilter(col, value);
+              dropdown.style.display = "none";
+            });
+          });
+          
+          dropdown.style.display = "block";
+        } else {
+          dropdown.style.display = "none";
+        }
+      });
+    });
+    
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".th-filterable")) {
+        document.querySelectorAll(".filter-dropdown").forEach(d => {
+          d.style.display = "none";
+        });
+      }
+    });
+    
+  }, 0);
+}
+
+/* ===========================
+   INLINE EDITING
+   =========================== */
+const editableFields = ["sku", "nombre", "categoria", "condicion", "estado"];
+
+function enableInlineEdit(cell) {
+  const col = cell.dataset.col;
+  const rowId = cell.dataset.row;
+  
+  if (!editableFields.includes(col)) return;
+  
+  const currentValue = cell.textContent;
+  
+  const input = document.createElement("input");
+  input.className = "dc-input";
+  input.type = "text";
+  input.value = currentValue;
+  input.style.padding = "4px 6px";
+  input.style.fontSize = "13px";
+  
+  cell.innerHTML = "";
+  cell.appendChild(input);
+  cell.classList.add("editing");
+  input.focus();
+  input.select();
+  
+  const saveEdit = async () => {
+    const newValue = input.value.trim();
+    
+    if (newValue === currentValue) {
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+      return;
+    }
+    
+    try {
+      cell.innerHTML = `<span style="opacity:0.6;">Guardando...</span>`;
+      
+      const row = state.rows.find(r => r.id === rowId);
+      if (!row) throw new Error("Producto no encontrado");
+      
+      const updateData = {};
+      updateData[col] = newValue;
+      
+      const docRef = doc(db, "productos", rowId);
+      await updateDoc(docRef, updateData);
+      
+      row[col] = newValue;
+      
+      cell.classList.remove("editing");
+      cell.textContent = newValue;
+      
+    } catch (error) {
+      console.error("Error guardando cambio:", error);
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+      alert("Error al guardar: " + error.message);
+    }
+  };
+  
+  input.addEventListener("blur", saveEdit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      saveEdit();
+    } else if (e.key === "Escape") {
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+    }
+  });
+}
+
 function applyFilters(){
   const q = normalize($("#invSearch").value);
   const cat = normalize($("#fCategoria").value);
   const cond = normalize($("#fCondicion").value);
   const est = normalize($("#fEstado").value);
+  const columnFilters = state.filters || {};
 
   state.filtered = state.rows.filter(r => {
     const text = normalize(`${r.nombre||""} ${r.sku||""} ${r.marca||""} ${r.modelo||""}`);
@@ -131,6 +464,21 @@ function applyFilters(){
     if (cat && normalize(r.categoria) !== cat) return false;
     if (cond && normalize(r.condicion) !== cond) return false;
     if (est && normalize(r.estado) !== est) return false;
+    
+    // Filtros de columnas
+    for (const [col, val] of Object.entries(columnFilters)) {
+      let cellVal = "";
+      switch(col) {
+        case "sku": cellVal = r.sku || ""; break;
+        case "nombre": cellVal = r.nombre || ""; break;
+        case "clave": cellVal = r.external_key || ""; break;
+        case "categoria": cellVal = r.categoria || ""; break;
+        case "condicion": cellVal = r.condicion || ""; break;
+        case "estado": cellVal = r.estado || ""; break;
+      }
+      if (cellVal.trim() !== val.trim()) return false;
+    }
+    
     return true;
   });
 
@@ -142,56 +490,57 @@ function applyFilters(){
   renderDrawer();
 }
 
+
 /* =========================
    TABLE
    ========================= */
 function renderTable(){
   const tb = $("#invTbody");
   tb.innerHTML = state.filtered.map(r => {
-    const foto = (r.foto_url && r.foto_url !== "SIN FOTO") ? r.foto_url : "";
+    const foto = r.foto_url && r.foto_url.trim() ? r.foto_url : "";
     const selectedClass = r.id === state.selectedId ? "selected" : "";
     return `
-      <tr class="dc-row ${selectedClass}" data-row="${r.id}">
-        <td>${foto ? `<img class="dc-img-sm" src="${foto}" />` : `<div class="dc-img-sm"></div>`}</td>
-        <td>${r.sku || ""}</td>
-        <td><span class="dc-pill">${r.nombre || ""}</span></td>
-        <td>${escapeHtml(r.external_key || (r.nombre || "") + '|' + (r.condicion || ''))}</td>
-        <td>${r.categoria || ""}</td>
-        <td>${r.condicion || ""}</td>
-        <td>${r.estado || ""}</td>
-        <td style="text-align:right;">${n(r.stock)}</td>
-        <td style="text-align:right;">${n(r.stock_transito)}</td>
-        <td style="text-align:right;">${n(r.stock_reservado)}</td>
-        <td style="text-align:right;"><b>${n(r.stock_proyectado)}</b></td>
-        <td style="text-align:right;">${money(r.costo_prom)}</td>
-        <td style="text-align:right;">${money(r.precio)}</td>
-        <td>
-          <div class="dc-actions">
-            <button class="dc-btn dc-mini" data-edit="${r.id}" type="button">Editar</button>
-            <button class="dc-btn dc-mini dc-danger" data-del="${r.id}" type="button">Eliminar</button>
-          </div>
-        </td>
+      <tr class="dc-row ${selectedClass}" data-id="${r.id}" data-row="${r.id}">
+        <td class="cell-no-select">${foto ? `<img class="dc-img-sm" src="${foto}" />` : `<div class="dc-img-sm"></div>`}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="sku">${r.sku || ""}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="nombre"><span class="dc-pill">${r.nombre || ""}</span></td>
+        <td class="cell-text" data-row="${r.id}" data-col="clave">${escapeHtml(r.external_key || (r.nombre || "") + '|' + (r.condicion || ''))}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="categoria">${r.categoria || ""}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="condicion">${r.condicion || ""}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="estado">${r.estado || ""}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="stock" data-value="${r.stock}" style="text-align:right;">${n(r.stock)}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="transito" data-value="${r.stock_transito}" style="text-align:right;">${n(r.stock_transito)}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="reservado" data-value="${r.stock_reservado}" style="text-align:right;">${n(r.stock_reservado)}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="proyectado" data-value="${r.stock_proyectado}" style="text-align:right;"><b>${n(r.stock_proyectado)}</b></td>
+        <td class="cell-num" data-row="${r.id}" data-col="costo_prom" data-value="${r.costo_prom}" style="text-align:right;">$${money(r.costo_prom)}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="precio" data-value="${r.precio}" style="text-align:right;">$${money(r.precio)}</td>
       </tr>
     `;
   }).join("");
 
-  tb.querySelectorAll("[data-row]").forEach(row => {
+  // Inicializar selección de celdas
+  cellSelection.init(tb);
+  
+  // Renderizar filtros de columnas
+  bindColumnFilters();
+
+  tb.querySelectorAll(".dc-row").forEach(row => {
     row.addEventListener("click", (ev) => {
       if (ev.target.closest("button")) return;
-      state.selectedId = row.dataset.row;
+      state.selectedId = row.dataset.id;
       state.mode = "details";
-      renderTable();
+      // Solo actualizar drawer, no regenerar tabla
       renderDrawer();
     });
   });
 
-  tb.querySelectorAll("[data-edit]").forEach(b =>
-    b.addEventListener("click", () => openEdit(b.dataset.edit))
-  );
-
-  tb.querySelectorAll("[data-del]").forEach(b =>
-    b.addEventListener("click", () => onDelete(b.dataset.del))
-  );
+  // Doble-click para edición inline
+  tb.querySelectorAll(".cell-text").forEach(cell => {
+    cell.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      enableInlineEdit(cell);
+    });
+  });
 }
 
 /* =========================
@@ -245,7 +594,7 @@ function renderDrawer(){
   el.innerHTML = `
     ${drawerHeader("Detalle del producto", r.sku || r.categoria || "")}
 
-    ${foto ? `<img class="preview-img" src="${foto}" />` : `<div class="preview-img"></div>`}
+    ${foto ? `<img class="preview-img has-image" src="${foto}" />` : `<div class="preview-img">📦</div>`}
 
     <div class="chiprow" style="margin-bottom:10px;">
       <span class="chip">${r.estado || "SIN ESTADO"}</span>
@@ -678,7 +1027,7 @@ async function onSave(ev, currentRow){
     }
 
     payload.created_at = serverTimestamp();
-    payload.foto_url = "SIN FOTO";
+    payload.foto_url = "";
     payload.foto_path = ""; // ✅ nuevo campo
 
     const refDoc = await addDoc(collection(db, "productos"), payload);
@@ -717,7 +1066,7 @@ async function onSave(ev, currentRow){
   const current = state.rows.find(x => x.id === id);
   const update = {
     ...payload,
-    foto_url: current?.foto_url || "SIN FOTO",
+    foto_url: current?.foto_url || "",
     foto_path: current?.foto_path || "",
   };
 
@@ -787,6 +1136,382 @@ async function refresh(){
 }
 
 /* =========================
+   CSV IMPORT / EXPORT
+   ========================= */
+
+// Campos esperados en el CSV (para descargar plantilla)
+const CSV_HEADERS = [
+  "nombre",
+  "categoria",
+  "sku",
+  "marca",
+  "modelo",
+  "condicion",
+  "estado",
+  "stock",
+  "stock_transito",
+  "stock_reservado",
+  "costo_prom",
+  "precio",
+  "garantia_meses",
+  "ubicacion",
+  "notas"
+];
+
+// Parsear CSV simple con soporte para comillas y diferentes separadores
+function parseCSV(csvText) {
+  const lines = csvText.trim().split("\n");
+  if (lines.length < 2) return { headers: [], rows: [] };
+
+  // Detectar separador (coma o punto y coma)
+  const headerLine = lines[0];
+  const separator = headerLine.includes(";") ? ";" : ",";
+  
+  // Parse header
+  const headers = parseCSVLine(headerLine, separator).map(h => h.toLowerCase());
+  
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || !line.trim()) continue;
+
+    const values = parseCSVLine(line, separator);
+    const obj = {};
+
+    headers.forEach((h, idx) => {
+      obj[h] = values[idx] || "";
+    });
+
+    // Solo agregar si tiene al menos nombre
+    if (obj.nombre && obj.nombre.trim()) {
+      rows.push(obj);
+    }
+  }
+
+  return { headers, rows };
+}
+
+// Helper para parsear línea CSV respetando comillas y separador
+function parseCSVLine(line, separator = ",") {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        i++; // skip next quote
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === separator && !inQuotes) {
+      values.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+// Descargar plantilla CSV
+function descargarPlantilla() {
+  const header = CSV_HEADERS.join(",");
+  
+  // Algunos ejemplos
+  const examples = [
+    ["iPhone 14 Pro", "CELULARES", "IPHONE14P128GB", "APPLE", "iPhone 14 Pro", "NUEVO", "ACTIVO", "5", "2", "1", "800.00", "1200.00", "12", "ESTANTE A1", "Sin accesorios"],
+    ["MacBook Air M2", "LAPTOPS", "MBA-M2-256", "APPLE", "MacBook Air", "NUEVO", "ACTIVO", "3", "1", "0", "1200.00", "1800.00", "12", "ESTANTE B2", "Incluye cargador"],
+    ["AirPods Pro", "ACCESORIOS", "AIRPODS-PRO", "APPLE", "AirPods Pro", "NUEVO", "ACTIVO", "10", "0", "2", "200.00", "350.00", "12", "ESTANTE C1", ""],
+  ];
+
+  let csv = header + "\n";
+  examples.forEach(ex => {
+    csv += ex.map(v => {
+      // Escapar comillas si el valor las contiene
+      if (v.includes(",") || v.includes('"')) {
+        return `"${v.replace(/"/g, '""')}"`;
+      }
+      return v;
+    }).join(",") + "\n";
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "plantilla_inventario.csv";
+  link.click();
+}
+
+// Mostrar modal de vista previa
+function mostrarVistaPrevia(datosParseados) {
+  const { headers, rows } = datosParseados;
+
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay";
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  `;
+
+  const content = document.createElement("div");
+  content.style.cssText = `
+    background: var(--bg2);
+    border-radius: 12px;
+    max-width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  `;
+
+  // Header
+  const head = document.createElement("div");
+  head.style.cssText = `
+    padding: 16px;
+    border-bottom: 1px solid var(--stroke);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  `;
+  head.innerHTML = `
+    <h3 style="margin: 0;">Vista Previa del CSV (${rows.length} productos)</h3>
+    <button id="btnCerrarModal" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text);">✕</button>
+  `;
+
+  // Tabla preview
+  const tableWrap = document.createElement("div");
+  tableWrap.style.cssText = `
+    flex: 1;
+    overflow: auto;
+    padding: 12px;
+  `;
+
+  let tableHtml = `
+    <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+      <thead>
+        <tr style="position: sticky; top: 0; background: var(--card);">
+          <th style="padding: 8px; text-align: left; border-bottom: 1px solid var(--stroke);">#</th>
+  `;
+
+  const visibleHeaders = headers.slice(0, 8); // Mostrar solo los primeros 8 campos
+  visibleHeaders.forEach(h => {
+    tableHtml += `<th style="padding: 8px; text-align: left; border-bottom: 1px solid var(--stroke);">${h}</th>`;
+  });
+
+  tableHtml += `
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  rows.slice(0, 20).forEach((row, idx) => {
+    tableHtml += `<tr style="border-bottom: 1px solid var(--stroke);">
+      <td style="padding: 8px; text-align: center; background: var(--card);">${idx + 1}</td>`;
+
+    visibleHeaders.forEach(h => {
+      const val = row[h] || "-";
+      tableHtml += `<td style="padding: 8px;">${escapeHtml(val.substring(0, 20))}</td>`;
+    });
+
+    tableHtml += `</tr>`;
+  });
+
+  if (rows.length > 20) {
+    tableHtml += `<tr><td colspan="${visibleHeaders.length + 1}" style="padding: 12px; text-align: center; color: var(--muted);">... y ${rows.length - 20} productos más</td></tr>`;
+  }
+
+  tableHtml += `
+      </tbody>
+    </table>
+  `;
+
+  tableWrap.innerHTML = tableHtml;
+
+  // Footer
+  const footer = document.createElement("div");
+  footer.style.cssText = `
+    padding: 12px 16px;
+    border-top: 1px solid var(--stroke);
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  `;
+
+  footer.innerHTML = `
+    <button id="btnCancelarImport" class="dc-btn dc-btn-ghost">Cancelar</button>
+    <button id="btnConfirmarImport" class="dc-btn">Cargar ${rows.length} productos</button>
+  `;
+
+  content.appendChild(head);
+  content.appendChild(tableWrap);
+  content.appendChild(footer);
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+
+  // Eventos
+  const btnCerrar = document.getElementById("btnCerrarModal");
+  const btnCancelar = document.getElementById("btnCancelarImport");
+  const btnConfirmar = document.getElementById("btnConfirmarImport");
+
+  function cerrarModal() {
+    modal.remove();
+  }
+
+  btnCerrar?.addEventListener("click", cerrarModal);
+  btnCancelar?.addEventListener("click", cerrarModal);
+
+  btnConfirmar?.addEventListener("click", async () => {
+    cerrarModal();
+    await cargarProductosDesdeCSV(rows);
+  });
+
+  return new Promise((resolve) => {
+    const origRemove = modal.remove;
+    modal.remove = function() {
+      origRemove.call(this);
+      resolve();
+    };
+  });
+}
+
+// Cargar productos desde CSV a Firebase
+async function cargarProductosDesdeCSV(rows) {
+  if (!rows.length) return;
+
+  const progressDiv = document.createElement("div");
+  progressDiv.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--bg2);
+    border: 1px solid var(--stroke);
+    border-radius: 8px;
+    padding: 16px;
+    z-index: 9999;
+    min-width: 300px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  `;
+
+  progressDiv.innerHTML = `
+    <div style="margin-bottom: 8px;">Cargando productos...</div>
+    <div style="width: 100%; height: 6px; background: var(--stroke); border-radius: 3px; overflow: hidden;">
+      <div id="progressBar" style="height: 100%; background: #4CAF50; width: 0%; transition: width 0.3s;"></div>
+    </div>
+    <div id="progressText" style="margin-top: 8px; font-size: 12px; color: var(--muted);">0 / ${rows.length}</div>
+  `;
+
+  document.body.appendChild(progressDiv);
+
+  let loaded = 0;
+  const errors = [];
+
+  for (const row of rows) {
+    try {
+      // Validar datos mínimos
+      const nombre = normalize(row.nombre || "");
+      const categoria = normalize(row.categoria || "");
+
+      if (!nombre || !categoria) {
+        errors.push(`Fila ${loaded + 1}: NOMBRE y CATEGORÍA obligatorios`);
+        loaded++;
+        continue;
+      }
+
+      // Preparar payload
+      const condicion = normalize(row.condicion || "NUEVO");
+      const external_key = `${nombre}|${condicion}`;
+
+      // Verificar duplicado
+      const dup = await existsExternalKey(external_key);
+      if (dup) {
+        errors.push(`Fila ${loaded + 1}: YA EXISTE ${external_key}`);
+        loaded++;
+        continue;
+      }
+
+      const stock = n(row.stock);
+      const stock_transito = n(row.stock_transito);
+      const stock_reservado = n(row.stock_reservado);
+      const stock_proyectado = calcStockProyectado(stock, stock_transito, stock_reservado);
+
+      const payload = {
+        nombre,
+        categoria,
+        sku: normalize(row.sku || ""),
+        marca: normalize(row.marca || ""),
+        modelo: normalize(row.modelo || ""),
+        condicion,
+        estado: normalize(row.estado || "ACTIVO"),
+        stock,
+        stock_transito,
+        stock_reservado,
+        stock_proyectado,
+        costo_prom: n(row.costo_prom),
+        precio: n(row.precio),
+        garantia_meses: n(row.garantia_meses),
+        ubicacion: normalize(row.ubicacion || ""),
+        notas: normalize(row.notas || ""),
+        external_key,
+        foto_url: "",
+        foto_path: "",
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+      };
+
+      await addDoc(collection(db, "productos"), payload);
+      loaded++;
+
+    } catch (err) {
+      errors.push(`Fila ${loaded + 1}: ${err?.message || "Error desconocido"}`);
+      loaded++;
+    }
+
+    // Actualizar progreso
+    const percent = Math.round((loaded / rows.length) * 100);
+    const bar = progressDiv.querySelector("#progressBar");
+    const text = progressDiv.querySelector("#progressText");
+    if (bar) bar.style.width = percent + "%";
+    if (text) text.textContent = `${loaded} / ${rows.length}`;
+  }
+
+  progressDiv.remove();
+
+  // Refrescar tabla
+  await refresh();
+
+  // Mostrar resultado
+  let msg = `✓ Cargados ${loaded} productos`;
+  if (errors.length) {
+    msg += `\n\n⚠ Errores (${errors.length}):\n${errors.slice(0, 5).join("\n")}`;
+    if (errors.length > 5) msg += `\n... y ${errors.length - 5} más`;
+  }
+
+  alert(msg);
+}
+
+// Helper: calcular stock proyectado
+function calcStockProyectado(stock, transito, reservado) {
+  return Math.max(0, stock + transito - reservado);
+}
+
+/* =========================
    MOUNT
    ========================= */
 export async function mountInventarioGeneral(container){
@@ -794,6 +1519,49 @@ export async function mountInventarioGeneral(container){
 
   $("#btnNuevo").addEventListener("click", openNew);
   $("#btnRefrescar").addEventListener("click", refresh);
+  
+  // Toggle drawer (minimizar/expandir panel de detalles)
+  $("#btnToggleDrawer")?.addEventListener("click", ()=>{
+    const gridContainer = container.querySelector('.inv-grid');
+    const btn = document.getElementById('btnToggleDrawer');
+    if (gridContainer && btn) {
+      const isMinimized = gridContainer.classList.toggle('drawer-minimized');
+      btn.textContent = isMinimized ? '▶ Detalles' : '▼ Detalles';
+      localStorage.setItem('dc_inventario_drawer_minimized', isMinimized ? '1' : '0');
+    }
+  });
+  
+  // CSV handlers
+  $("#btnDescargarCsv").addEventListener("click", descargarPlantilla);
+  
+  $("#btnCargarCsv").addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv";
+    input.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const csvText = evt.target?.result;
+          if (typeof csvText === "string") {
+            const parsed = parseCSV(csvText);
+            console.log("Parsed CSV:", parsed); // DEBUG
+            if (parsed.rows.length > 0) {
+              mostrarVistaPrevia(parsed);
+            } else {
+              // Mostrar más detalles del error
+              const lines = csvText.trim().split("\n");
+              const headers = lines[0];
+              alert(`No se encontraron productos en el CSV.\n\nCabecera detectada:\n${headers}\n\nAsegúrate de que:\n1. La primera fila sea la cabecera\n2. Haya al menos una fila de datos\n3. El campo "nombre" esté presente`);
+            }
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  });
 
   $("#invSearch").addEventListener("input", applyFilters);
   $("#fCategoria").addEventListener("change", applyFilters);
@@ -801,6 +1569,16 @@ export async function mountInventarioGeneral(container){
   $("#fEstado").addEventListener("change", applyFilters);
 
   await refresh();
+  
+  // Restaurar estado del drawer
+  const isMinimized = localStorage.getItem('dc_inventario_drawer_minimized') === '1';
+  const grid = container.querySelector('.inv-grid');
+  const btn = container.querySelector('#btnToggleDrawer');
+  if (isMinimized && grid && btn) {
+    grid.classList.add('drawer-minimized');
+    btn.textContent = '▶ Detalles';
+  }
+  
   renderTable();
   renderDrawer();
 

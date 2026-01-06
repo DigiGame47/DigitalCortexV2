@@ -11,20 +11,22 @@
     (function() {
       const TEMAS = {
         oscuro: {
-          "--bg1": "#0b1020",
-          "--bg2": "#111a33",
-          "--card": "rgba(255,255,255,.06)",
-          "--stroke": "rgba(255,255,255,.10)",
-          "--text": "#e9eefc",
-          "--muted": "rgba(233,238,252,.70)"
+          "--bg1": "#ffffff",
+          "--bg2": "#ffffff",
+          "--card": "#ffffff",
+          "--stroke": "#e0e0e0",
+          "--text": "#1a1a1a",
+          "--muted": "rgba(26, 26, 26, 0.70)",
+          "--sidebar-bg": "#000000",
+          "--header-bg": "#f5f5f5"
         },
         claro: {
-          "--bg1": "#f5f7fa",
+          "--bg1": "#ffffff",
           "--bg2": "#ffffff",
-          "--card": "rgba(0,0,0,.04)",
-          "--stroke": "rgba(0,0,0,.10)",
-          "--text": "#1a202c",
-          "--muted": "rgba(26,32,44,.70)"
+          "--card": "#ffffff",
+          "--stroke": "#e0e0e0",
+          "--text": "#1a1a1a",
+          "--muted": "rgba(26, 26, 26, 0.70)"
         },
         multicolor: {
           "--bg1": "#0f0f1e",
@@ -45,12 +47,12 @@
         });
       }
       
-      // Establecer data-tema en body lo antes posible
+      const dataTema = (temaSaved === "oscuro" && tema && tema["--bg2"] === "#ffffff") ? "claro" : temaSaved;
       if (document.body) {
-        document.body.dataset.tema = temaSaved;
+        document.body.dataset.tema = dataTema;
       } else {
         document.addEventListener('DOMContentLoaded', function() {
-          document.body.dataset.tema = temaSaved;
+          document.body.dataset.tema = dataTema;
         });
       }
     })();
@@ -216,6 +218,17 @@
   }
 
   // ==========================
+  // RECEPCIÓN: carga on-demand (caché)
+  // ==========================
+  let _recepcionModulePromise = null;
+  async function loadRecepcionModule(){
+    if(!_recepcionModulePromise){
+      _recepcionModulePromise = import('/js/recepcion.js');
+    }
+    return _recepcionModulePromise;
+  }
+
+  // ==========================
   // VENTAS: carga on-demand (caché)
   // ==========================
   let _ventasModulePromise = null;
@@ -227,6 +240,28 @@
   }
 
   // ==========================
+  // LIQUIDACIONES: carga on-demand (caché)
+  // ==========================
+  let _liquidacionesModulePromise = null;
+  async function loadLiquidacionesModule(){
+    if(!_liquidacionesModulePromise){
+      _liquidacionesModulePromise = import('/js/liquidaciones.js');
+    }
+    return _liquidacionesModulePromise;
+  }
+
+  // ==========================
+  // DEVOLUCIONES: carga on-demand (caché)
+  // ==========================
+  let _devolucionesModulePromise = null;
+  async function loadDevolucionesModule(){
+    if(!_devolucionesModulePromise){
+      _devolucionesModulePromise = import('/js/devoluciones.js');
+    }
+    return _devolucionesModulePromise;
+  }
+
+  // ==========================
   // AJUSTES: carga on-demand (caché)
   // ==========================
   let _ajustesModulePromise = null;
@@ -235,6 +270,28 @@
       _ajustesModulePromise = import('/js/ajustes.js');
     }
     return _ajustesModulePromise;
+  }
+
+  // ==========================
+  // FINANZAS: carga on-demand (caché)
+  // ==========================
+  let _finanzasModulePromise = null;
+  async function loadFinanzasModule(){
+    if(!_finanzasModulePromise){
+      _finanzasModulePromise = import('/js/finanzas.js');
+    }
+    return _finanzasModulePromise;
+  }
+
+  // ==========================
+  // DASHBOARD: carga on-demand (caché)
+  // ==========================
+  let _dashboardModulePromise = null;
+  async function loadDashboardModule(){
+    if(!_dashboardModulePromise){
+      _dashboardModulePromise = import('/js/dashboard.js');
+    }
+    return _dashboardModulePromise;
   }
 
   // ==========================
@@ -254,7 +311,12 @@
         switch (key) {
           // Dashboard
           case "dashboard":
-            container.innerHTML = `<div class="card" style="padding:14px;"><b>Dashboard</b> - En construcción</div>`;
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando Dashboard...</div>`;
+            console.log('[DC.openView] Cargando dashboard');
+            const modDashboard = await loadDashboardModule();
+            if (!modDashboard.mountDashboard) throw new Error("dashboard.js no exporta mountDashboard");
+            await modDashboard.mountDashboard(container);
+            console.log('[DC.openView] mountDashboard completado');
             break;
 
           // Inventario
@@ -264,13 +326,13 @@
             await mountInventarioGeneral(container);
             break;
 
-          // Compras
+          // Compras Recepción
           case "compras_recepcion":
-            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Compras...</div>`;
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Recepción...</div>`;
             console.log('[DC.openView] Cargando compras_recepcion');
-            const modComprasRec = await loadComprasModule();
-            if (!modComprasRec.mountComprasRecepcion) throw new Error("compras.js no exporta mountComprasRecepcion");
-            await modComprasRec.mountComprasRecepcion(container);
+            const modRecepcion = await loadRecepcionModule();
+            if (!modRecepcion.mountRecepcion) throw new Error("recepcion.js no exporta mountRecepcion");
+            await modRecepcion.mountRecepcion(container);
             break;
 
           case "compras_seguimiento":
@@ -281,10 +343,8 @@
             await modCompraSeg.mountComprasSeguimiento(container);
             break;
 
-          // Ventas (3 vistas → mismo mount)
+          // Ventas Pedidos
           case "ventas_pedidos":
-          case "ventas_liquidaciones":
-          case "ventas_devoluciones":
             container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Ventas...</div>`;
             console.log('[DC.openView] Cargando ventas (key=' + key + ')');
             const modVentas = await loadVentasModule();
@@ -292,6 +352,28 @@
             if (!modVentas.mountVentas) throw new Error("ventas.js no exporta mountVentas");
             await modVentas.mountVentas(container);
             console.log('[DC.openView] mountVentas completado');
+            break;
+
+          // Ventas Devoluciones
+          case "ventas_devoluciones":
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Devoluciones...</div>`;
+            console.log('[DC.openView] Cargando devoluciones');
+            const modDevoluciones = await loadDevolucionesModule();
+            console.log('[DC.openView] Módulo devoluciones cargado:', { hasMount: !!modDevoluciones?.mountDevoluciones });
+            if (!modDevoluciones.mountDevoluciones) throw new Error("devoluciones.js no exporta mountDevoluciones");
+            await modDevoluciones.mountDevoluciones(container);
+            console.log('[DC.openView] mountDevoluciones completado');
+            break;
+
+          // Ventas Liquidaciones
+          case "ventas_liquidaciones":
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Liquidaciones...</div>`;
+            console.log('[DC.openView] Cargando liquidaciones');
+            const modLiq = await loadLiquidacionesModule();
+            console.log('[DC.openView] Módulo liquidaciones cargado:', { hasMount: !!modLiq?.mountLiquidaciones });
+            if (!modLiq.mountLiquidaciones) throw new Error("liquidaciones.js no exporta mountLiquidaciones");
+            await modLiq.mountLiquidaciones(container);
+            console.log('[DC.openView] mountLiquidaciones completado');
             break;
 
           // Ajustes
@@ -302,6 +384,16 @@
             if (!modAjustes.mountAjustes) throw new Error("ajustes.js no exporta mountAjustes");
             await modAjustes.mountAjustes(container);
             console.log('[DC.openView] mountAjustes completado');
+            break;
+
+          // Finanzas
+          case "finanzas":
+            container.innerHTML = `<div class="card" style="padding:14px;">Cargando módulo Finanzas...</div>`;
+            console.log('[DC.openView] Cargando finanzas');
+            const modFinanzas = await loadFinanzasModule();
+            if (!modFinanzas.mountFinanzas) throw new Error("finanzas.js no exporta mountFinanzas");
+            await modFinanzas.mountFinanzas(container);
+            console.log('[DC.openView] mountFinanzas completado');
             break;
 
           default:

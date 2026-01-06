@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vista Previa - Ticket Térmico PT-210</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Courier New', 'Courier', monospace;
+            background: white;
+            padding: 20px;
+            font-size: 13px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+        }
+
+        .controls {
+            position: sticky;
+            top: 0;
+            background: #222;
+            padding: 10px 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            transition: all 0.3s;
+            color: white;
+        }
+
+        .btn-print {
+            background: #4CAF50;
+        }
+
+        .btn-print:hover {
+            background: #45a049;
+        }
+
+        .btn-close {
+            background: #f44336;
+        }
+
+        .btn-close:hover {
+            background: #da190b;
+        }
+
+        .preview-container {
+            display: flex;
+            justify-content: center;
+        }
+
+        .ticket-container {
+            width: 80mm;
+            background: white;
+            padding: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+            overflow: hidden;
+        }
+
+        .ticket-header {
+            text-align: center;
+            margin-bottom: 6px;
+        }
+
+        .store-name {
+            font-weight: bold;
+            font-size: 13px;
+            letter-spacing: 1px;
+        }
+
+        .store-subtitle {
+            font-size: 10px;
+            color: #333;
+            margin-top: 2px;
+        }
+
+        .separator {
+            border-top: 1px dashed #000;
+            margin: 5px 0;
+        }
+
+        .separator-thin {
+            border-top: 1px solid #999;
+            margin: 3px 0;
+        }
+
+        .ticket-section {
+            margin-bottom: 4px;
+            font-size: 11px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }
+
+        .ticket-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1px;
+            font-size: 11px;
+        }
+
+        .ticket-row.small {
+            font-size: 10px;
+        }
+
+        .ticket-row.total {
+            font-weight: bold;
+            font-size: 12px;
+            padding: 3px 0;
+        }
+
+        .label {
+            font-weight: bold;
+            flex: 0 0 auto;
+        }
+
+        .value {
+            flex: 1;
+            text-align: right;
+            padding-left: 8px;
+        }
+
+        .value.amount {
+            font-weight: bold;
+        }
+
+        .client-name {
+            font-weight: bold;
+            font-size: 12px;
+            margin-bottom: 2px;
+            word-wrap: break-word;
+        }
+
+        .address {
+            font-size: 10px;
+            margin-left: 0;
+            word-wrap: break-word;
+            line-height: 1.2;
+        }
+
+        .product-name {
+            font-weight: bold;
+            font-size: 12px;
+            word-wrap: break-word;
+        }
+
+        .qr-section {
+            text-align: center;
+            margin: 6px 0;
+            padding: 6px 0;
+        }
+
+        .qr-code {
+            width: 90px;
+            height: 90px;
+            display: inline-block;
+            border: 2px solid #000;
+        }
+
+        .ticket-footer {
+            text-align: center;
+            font-weight: bold;
+            font-size: 11px;
+            margin-top: 4px;
+            line-height: 1.3;
+        }
+
+        @media print {
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              -webkit-font-smoothing: antialiased;
+              -moz-osx-font-smoothing: grayscale;
+              color: #000 !important;
+            }
+
+            body {
+                background: white !important;
+                padding: 0;
+                margin: 0;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                color: #000 !important;
+            }
+
+            .controls {
+                display: none;
+            }
+
+            .preview-container {
+                margin-top: 0;
+            }
+
+            .ticket-container {
+                box-shadow: none;
+                width: 80mm;
+                padding: 3px;
+                background: white !important;
+                color: black !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+                page-break-inside: avoid;
+            }
+
+            .ticket-header,
+            .ticket-section,
+            .separator,
+            .separator-thin,
+            .qr-section,
+            .ticket-footer {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color: #000 !important;
+              background: white !important;
+            }
+
+            .store-name,
+            .section-title,
+            .label,
+            .ticket-row,
+            .client-name,
+            .product-name,
+            .address,
+            .value {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color: #000 !important;
+              font-weight: bold !important;
+            }
+
+            @page {
+                size: 80mm auto;
+                margin: 0;
+                padding: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <button class="btn btn-print" onclick="window.print()">🖨️ Imprimir</button>
+        <button class="btn btn-close" onclick="window.close()">❌ Cerrar</button>
+    </div>
+    <div class="preview-container">
+        <div class="ticket-container">
+            <!-- Encabezado -->
+            <div class="ticket-header">
+                <div class="store-name">DIGITAL CORTEX</div>
+                <div class="store-subtitle">Tienda de Auriculares</div>
+            </div>
+
+            <!-- Línea separadora -->
+            <div class="separator"></div>
+
+            <!-- Info de venta -->
+            <div class="ticket-section">
+                <div class="ticket-row">
+                    <span class="label">VENTA #:</span>
+                    <span class="value">A1B2C3D4</span>
+                </div>
+                <div class="ticket-row">
+                    <span class="label">Fecha:</span>
+                    <span class="value">05/01/2026</span>
+                </div>
+                <div class="ticket-row">
+                    <span class="label">Hora:</span>
+                    <span class="value">14:30</span>
+                </div>
+            </div>
+
+            <!-- Línea separadora -->
+            <div class="separator"></div>
+
+            <!-- Datos cliente -->
+            <div class="ticket-section">
+                <div class="section-title">CLIENTE</div>
+                <div class="client-name">Juan Carlos Pérez</div>
+                <div class="ticket-row small"><span class="label">Tel:</span> <span class="value">+34 612345678</span></div>
+                <div class="ticket-row small"><span class="label">Dirección:</span></div>
+                <div class="address">Calle Principal 123, Apt 4B, Madrid 28001</div>
+            </div>
+
+            <!-- Línea separadora -->
+            <div class="separator"></div>
+
+            <!-- Producto -->
+            <div class="ticket-section">
+                <div class="section-title">PRODUCTO</div>
+                <div class="product-name">AirPods Pro 2da Gen</div>
+            </div>
+
+            <!-- Línea separadora -->
+            <div class="separator"></div>
+
+            <!-- Detalles financieros -->
+            <div class="ticket-section">
+                <div class="ticket-row">
+                    <span class="label">Precio:</span>
+                    <span class="value amount">$249.99</span>
+                </div>
+                <div class="ticket-row">
+                    <span class="label">Envío:</span>
+                    <span class="value amount">$8.99</span>
+                </div>
+                <div class="separator-thin"></div>
+                <div class="ticket-row total">
+                    <span class="label">TOTAL:</span>
+                    <span class="value">$258.98</span>
+                </div>
+            </div>
+
+            <!-- Línea separadora -->
+            <div class="separator"></div>
+
+            <!-- Método de pago -->
+            <div class="ticket-section">
+                <div class="ticket-row small">
+                    <span class="label">Pago:</span>
+                    <span class="value">TARJETA CRÉDITO</span>
+                </div>
+                <div class="ticket-row small">
+                    <span class="label">Envío:</span>
+                    <span class="value">DHL EXPRESS</span>
+                </div>
+            </div>
+
+            <!-- Código QR -->
+            <div class="qr-section">
+                <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=%7B%22id%22:%22a1b2c3d4e5f6g7h8%22,%22cliente%22:%22Juan%20Carlos%20P%C3%A9rez%22,%22total%22:258.98,%22fecha%22:%2205/01/2026%22%7D" alt="QR" class="qr-code">
+            </div>
+
+            <!-- Pie -->
+            <div class="separator"></div>
+            <div class="ticket-footer">
+                <div>GRACIAS POR SU COMPRA</div>
+                <div style="font-size: 10px; margin-top: 4px;">Vuelva pronto</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

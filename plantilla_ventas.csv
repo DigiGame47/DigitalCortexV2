@@ -1,0 +1,4 @@
+cliente;direccion;telefono;fecha;producto_id;precio_producto;precio_envio;tipo_recaudo;estado_venta;estado_liquidacion;origen_venta;nombre_campana;gasto_publicidad;hora_entrega;imagen_url;notas
+Juan Pérez;Calle Principal 123, Apt 5;04121234567;2025-01-02;IPHONE14P128GB;1000.00;50.00;EFECTIVO;VENTA FINALIZADA;SI;INSTAGRAM;Campaña iPhone;20.00;14:30;https://example.com/foto.jpg;
+María García;Avenida Central 456;04149876543;2025-01-02;MBA-M2-256;1500.00;100.00;TRANSFERENCIA;VENTA FINALIZADA;SI;FACEBOOK;Black Friday;30.00;09:15;https://example.com/foto.jpg;
+Carlos López;Zona 2, Local 10;04127654321;2025-01-02;AIRPODS-PRO;300.00;30.00;PAYPAL;PEDIDO PROGRAMADO;NO;WHATSAPP;;0.00;16:45;;Entrega mañana

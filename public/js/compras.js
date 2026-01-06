@@ -31,6 +31,7 @@ const state = {
   filtered: [],
   selectedId: null,
   mode: "details", // details | edit | new
+  filters: {}, // filtros de columnas activos
   productos: [],   // cache productos inventario
   productoSelected: null, // producto seleccionado en drawer (modo new/edit)
 };
@@ -69,29 +70,58 @@ function viewTemplate(){
         <div style="display:flex;gap:10px;align-items:center;">
           <button id="btnNuevo" class="dc-btn">+ Nueva orden</button>
           <button id="btnRefrescar" class="dc-btn dc-btn-ghost">Refrescar</button>
+          <button id="btnToggleDrawer" class="dc-btn dc-btn-ghost" title="Minimizar/Expandir panel de detalles">▼ Detalles</button>
         </div>
       </div>
 
       <div style="margin-top:12px;" class="dc-table-wrap">
+        <div id="cellSumIndicator" class="cell-sum-indicator" style="display:none;"></div>
         <table class="dc-table">
           <thead>
             <tr>
               <th>Foto</th>
-              <th>N RASTREO</th>
-              <th>ESTADO</th>
-              <th>CLAVE</th>
-              <th>CATEGORÍA</th>
+              <th class="th-filterable" data-col="rastreo">
+                N RASTREO
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="estado">
+                ESTADO
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="clave">
+                CLAVE
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="categoria">
+                CATEGORÍA
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
               <th style="text-align:right;">CANT</th>
               <th style="text-align:right;">TOTAL</th>
               <th style="text-align:right;">C/U</th>
-              <th>PROVEEDOR ENVIO</th>
-              <th>TIENDA</th>
-              <th>USUARIO</th>
+              <th class="th-filterable" data-col="proveedor">
+                PROVEEDOR ENVIO
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="tienda">
+                TIENDA
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="usuario">
+                USUARIO
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
               <th>FECHA COMPRA</th>
               <th>FECHA RECIBIDO</th>
               <th style="text-align:right;">ENVIO</th>
               <th style="text-align:right;">RECIBIDO</th>
-              <th>ACCIONES</th>
             </tr>
           </thead>
           <tbody id="cTbody"></tbody>
@@ -165,8 +195,22 @@ function initResizer(container){
 async function loadProductosInventario(){
   const snap = await getDocs(collection(db, "productos"));
   const rows = [];
-  snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+  snap.forEach(d => {
+    const data = d.data();
+    // Si no tiene external_key, construirlo desde nombre|condición en MAYÚSCULAS
+    if (!data.external_key) {
+      const nombre = normalize(data.nombre || '');
+      const condicion = normalize(data.condicion || '');
+      if (nombre && condicion) {
+        data.external_key = nombre + '|' + condicion;
+      } else if (nombre) {
+        data.external_key = nombre;
+      }
+    }
+    rows.push({ id: d.id, ...data });
+  });
   state.productos = rows;
+  console.log('[Compras] Productos cargados:', rows.length, rows);
 }
 
 
@@ -224,11 +268,310 @@ async function loadCompras(){
 }
 
 
+
+/* ===========================
+   CELL SELECTION & SUM
+   =========================== */
+const cellSelection = {
+  selected: new Set(),
+  lastSelected: null,
+  
+  init(tbody) {
+    tbody.querySelectorAll(".cell-num, .cell-text").forEach(cell => {
+      cell.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.handleCellClick(cell, e);
+      });
+      cell.style.cursor = "cell";
+    });
+  },
+  
+  handleCellClick(cell, e) {
+    const rowId = cell.dataset.row;
+    
+    if (e.ctrlKey || e.metaKey) {
+      const key = this.getCellKey(cell);
+      if (this.selected.has(key)) {
+        this.selected.delete(key);
+        cell.classList.remove("cell-selected");
+      } else {
+        this.selected.add(key);
+        cell.classList.add("cell-selected");
+      }
+    } else if (e.shiftKey && this.lastSelected) {
+      this.selectRange(this.lastSelected, cell);
+    } else {
+      this.clearSelection();
+      const key = this.getCellKey(cell);
+      this.selected.add(key);
+      cell.classList.add("cell-selected");
+      this.lastSelected = cell;
+      if (rowId) {
+        // Solo actualizar selección visual sin regenerar tabla
+        document.querySelectorAll(".dc-row").forEach(row => {
+          row.classList.remove("selected");
+        });
+        const selectedRow = document.querySelector(`[data-id="${rowId}"]`);
+        if (selectedRow) {
+          selectedRow.classList.add("selected");
+        }
+        
+        state.selectedId = rowId;
+        state.mode = "details";
+        renderDrawer();
+      }
+    }
+    this.updateSum();
+  },
+  
+  getCellKey(cell) {
+    return `${cell.dataset.row}|${cell.dataset.col}`;
+  },
+  
+  selectRange(from, to) {
+    const tbody = document.querySelector("tbody#cTbody");
+    if (!tbody) return;
+    
+    const fromRow = Array.from(tbody.querySelectorAll(".dc-row")).findIndex(r => r.dataset.id === from.dataset.row);
+    const toRow = Array.from(tbody.querySelectorAll(".dc-row")).findIndex(r => r.dataset.id === to.dataset.row);
+    
+    const startRow = Math.min(fromRow, toRow);
+    const endRow = Math.max(fromRow, toRow);
+    
+    this.clearSelection();
+    
+    const rows = Array.from(tbody.querySelectorAll(".dc-row"));
+    for (let i = startRow; i <= endRow; i++) {
+      const row = rows[i];
+      const cells = row.querySelectorAll(".cell-num, .cell-text");
+      cells.forEach(cell => {
+        const key = this.getCellKey(cell);
+        this.selected.add(key);
+        cell.classList.add("cell-selected");
+      });
+    }
+  },
+  
+  clearSelection() {
+    document.querySelectorAll(".cell-selected").forEach(cell => {
+      cell.classList.remove("cell-selected");
+    });
+    this.selected.clear();
+  },
+  
+  updateSum() {
+    const tbody = document.querySelector("tbody#cTbody");
+    if (!tbody) return;
+    
+    let total = 0;
+    let count = 0;
+    
+    this.selected.forEach(key => {
+      const [rowId, col] = key.split("|");
+      const cell = tbody.querySelector(`[data-row="${rowId}"][data-col="${col}"]`);
+      if (cell && cell.classList.contains("cell-num")) {
+        const value = parseFloat(cell.dataset.value) || 0;
+        total += value;
+        count++;
+      }
+    });
+    
+    const indicator = document.getElementById("cellSumIndicator");
+    if (indicator) {
+      if (count > 0) {
+        indicator.innerHTML = `<strong>Suma: $${total.toFixed(2)}</strong> (${count} celdas)`;
+        indicator.style.display = "block";
+      } else {
+        indicator.style.display = "none";
+      }
+    }
+  }
+};
+
+/* ===========================
+   COLUMN FILTERS
+   =========================== */
+function getColumnValues(col) {
+  const values = new Set();
+  state.rows.forEach(r => {
+    let val = "";
+    switch(col) {
+      case "rastreo": val = r.n_rastreo || ""; break;
+      case "estado": val = r.estado_transito || ""; break;
+      case "clave": val = r.external_key || ""; break;
+      case "categoria": val = r.categoria || ""; break;
+      case "proveedor": val = r.proveedor_envio || ""; break;
+      case "tienda": val = r.tienda || ""; break;
+      case "usuario": val = r.usuario || ""; break;
+    }
+    if (val) values.add(val);
+  });
+  return Array.from(values).sort();
+}
+
+function applyColumnFilter(col, value) {
+  if (!state.filters) state.filters = {};
+  
+  if (value === "") {
+    delete state.filters[col];
+  } else {
+    state.filters[col] = value;
+  }
+  
+  applyFilters();
+}
+
+function bindColumnFilters() {
+  setTimeout(() => {
+    const filterHeaders = document.querySelectorAll(".th-filterable");
+    
+    filterHeaders.forEach(th => {
+      const col = th.dataset.col;
+      const icon = th.querySelector(".filter-icon");
+      const dropdown = th.querySelector(".filter-dropdown");
+      
+      if (!icon || !dropdown) return;
+      
+      const newIcon = icon.cloneNode(true);
+      icon.parentNode.replaceChild(newIcon, icon);
+      
+      newIcon.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        document.querySelectorAll(".filter-dropdown").forEach(d => {
+          if (d !== dropdown) d.style.display = "none";
+        });
+        
+        const isOpen = dropdown.style.display !== "none" && dropdown.style.display !== "";
+        
+        if (!isOpen) {
+          const values = getColumnValues(col);
+          const current = state.filters?.[col] || "";
+          
+          dropdown.innerHTML = `
+            <div style="padding:8px;">
+              <div class="filter-option ${current === "" ? "active" : ""}" data-value="">
+                ✓ Todos
+              </div>
+              ${values.map(v => `
+                <div class="filter-option ${current === v ? "active" : ""}" data-value="${v}">
+                  ✓ ${v}
+                </div>
+              `).join("")}
+            </div>
+          `;
+          
+          dropdown.querySelectorAll(".filter-option").forEach(opt => {
+            opt.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const value = opt.dataset.value;
+              applyColumnFilter(col, value);
+              dropdown.style.display = "none";
+            });
+          });
+          
+          dropdown.style.display = "block";
+        } else {
+          dropdown.style.display = "none";
+        }
+      });
+    });
+    
+    document.addEventListener("click", (e) => {
+      if (!e.target.closest(".th-filterable")) {
+        document.querySelectorAll(".filter-dropdown").forEach(d => {
+          d.style.display = "none";
+        });
+      }
+    });
+    
+  }, 0);
+}
+
+/* ===========================
+   INLINE EDITING
+   =========================== */
+const editableFields = ["rastreo", "clave", "categoria", "tienda", "usuario"];
+
+function enableInlineEdit(cell) {
+  const col = cell.dataset.col;
+  const rowId = cell.dataset.row;
+  
+  if (!editableFields.includes(col)) return;
+  
+  const currentValue = cell.textContent;
+  
+  const input = document.createElement("input");
+  input.className = "dc-input";
+  input.type = "text";
+  input.value = currentValue;
+  input.style.padding = "4px 6px";
+  input.style.fontSize = "13px";
+  
+  cell.innerHTML = "";
+  cell.appendChild(input);
+  cell.classList.add("editing");
+  input.focus();
+  input.select();
+  
+  const saveEdit = async () => {
+    const newValue = input.value.trim();
+    
+    if (newValue === currentValue) {
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+      return;
+    }
+    
+    try {
+      cell.innerHTML = `<span style="opacity:0.6;">Guardando...</span>`;
+      
+      const row = state.rows.find(r => r.id === rowId);
+      if (!row) throw new Error("Orden no encontrada");
+      
+      const updateData = {};
+      switch(col) {
+        case "rastreo": updateData.n_rastreo = newValue; break;
+        case "clave": updateData.external_key = newValue; break;
+        case "categoria": updateData.categoria = newValue; break;
+        case "tienda": updateData.tienda = newValue; break;
+        case "usuario": updateData.usuario = newValue; break;
+      }
+      
+      const docRef = doc(db, "compras", rowId);
+      await updateDoc(docRef, updateData);
+      
+      row[col === "rastreo" ? "n_rastreo" : col === "clave" ? "external_key" : col] = newValue;
+      
+      cell.classList.remove("editing");
+      cell.textContent = newValue;
+      
+    } catch (error) {
+      console.error("Error guardando cambio:", error);
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+      alert("Error al guardar: " + error.message);
+    }
+  };
+  
+  input.addEventListener("blur", saveEdit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      saveEdit();
+    } else if (e.key === "Escape") {
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+    }
+  });
+}
+
 function applyFilters(){
   const q = normalize($("#cSearch").value);
   const est = normalize($("#fEstadoTransito").value);
   const tienda = normalize($("#fTienda").value);
   const usuario = normalize($("#fUsuario").value);
+  const columnFilters = state.filters || {};
 
   state.filtered = state.rows.filter(r=>{
     const text = normalize(`${r.n_rastreo||""} ${r.external_key||""} ${r.tienda||""} ${r.usuario||""} ${r.proveedor_envio||""}`);
@@ -236,6 +579,21 @@ function applyFilters(){
     if (est && normalize(r.estado_transito) !== est) return false;
     if (tienda && normalize(r.tienda) !== tienda) return false;
     if (usuario && normalize(r.usuario) !== usuario) return false;
+    
+    for (const [col, val] of Object.entries(columnFilters)) {
+      let cellVal = "";
+      switch(col) {
+        case "rastreo": cellVal = r.n_rastreo || ""; break;
+        case "estado": cellVal = r.estado_transito || ""; break;
+        case "clave": cellVal = r.external_key || ""; break;
+        case "categoria": cellVal = r.categoria || ""; break;
+        case "proveedor": cellVal = r.proveedor_envio || ""; break;
+        case "tienda": cellVal = r.tienda || ""; break;
+        case "usuario": cellVal = r.usuario || ""; break;
+      }
+      if (cellVal.trim() !== val.trim()) return false;
+    }
+    
     return true;
   });
 
@@ -247,57 +605,59 @@ function applyFilters(){
   renderDrawer();
 }
 
+
 /* =========================
    TABLE RENDER
    ========================= */
 function renderTable(){
   const tb = $("#cTbody");
   tb.innerHTML = state.filtered.map(r=>{
-    const foto = (r.foto_url && r.foto_url !== "SIN FOTO") ? r.foto_url : "";
+    const foto = (r.foto_url && r.foto_url.trim()) ? r.foto_url : "";
     const selectedClass = r.id === state.selectedId ? "selected" : "";
     return `
-      <tr class="dc-row ${selectedClass}" data-row="${r.id}">
-        <td>${foto ? `<img class="dc-img-sm" src="${foto}"/>` : `<div class="dc-img-sm"></div>`}</td>
-        <td>${escapeHtml(r.n_rastreo || "")}</td>
-        <td><span class="dc-pill">${escapeHtml(r.estado_transito || "")}</span></td>
-        <td>${escapeHtml(r.external_key || "")}</td>
-        <td>${escapeHtml(r.categoria || "")}</td>
-        <td style="text-align:right;">${n(r.cantidad)}</td>
-        <td style="text-align:right;">${money(r.total_costo)}</td>
-        <td style="text-align:right;">${money(r.costo_unitario)}</td>
-        <td>${escapeHtml(r.proveedor_envio || "")}</td>
-        <td>${escapeHtml(r.tienda || "")}</td>
-        <td>${escapeHtml(r.usuario || "")}</td>
-        <td>${escapeHtml(r.fecha_compra || "")}</td>
-        <td>${escapeHtml(r.fecha_recibido || "")}</td>
-        <td style="text-align:right;">${money(r.costo_envio_total)}</td>
-        <td style="text-align:right;"><b>${n(r.cant_recibido_total)}</b></td>
-        <td>
-          <div class="dc-actions">
-            <button class="dc-btn dc-mini" data-edit="${r.id}" type="button">Editar</button>
-            <button class="dc-btn dc-mini dc-danger" data-del="${r.id}" type="button">Eliminar</button>
-          </div>
-        </td>
+      <tr class="dc-row ${selectedClass}" data-id="${r.id}" data-row="${r.id}">
+        <td class="cell-no-select">${foto ? `<img class="dc-img-sm" src="${foto}"/>` : `<div class="dc-img-sm"></div>`}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="rastreo">${escapeHtml(r.n_rastreo || "")}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="estado"><span class="dc-pill">${escapeHtml(r.estado_transito || "")}</span></td>
+        <td class="cell-text" data-row="${r.id}" data-col="clave">${escapeHtml(r.external_key || "")}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="categoria">${escapeHtml(r.categoria || "")}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="cantidad" data-value="${r.cantidad}" style="text-align:right;">${n(r.cantidad)}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="total_costo" data-value="${r.total_costo}" style="text-align:right;">$${money(r.total_costo)}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="costo_unitario" data-value="${r.costo_unitario}" style="text-align:right;">$${money(r.costo_unitario)}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="proveedor">${escapeHtml(r.proveedor_envio || "")}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="tienda">${escapeHtml(r.tienda || "")}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="usuario">${escapeHtml(r.usuario || "")}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="fecha_compra">${escapeHtml(r.fecha_compra || "")}</td>
+        <td class="cell-text" data-row="${r.id}" data-col="fecha_recibido">${escapeHtml(r.fecha_recibido || "")}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="costo_envio" data-value="${r.costo_envio_total}" style="text-align:right;">$${money(r.costo_envio_total)}</td>
+        <td class="cell-num" data-row="${r.id}" data-col="cant_recibido" data-value="${r.cant_recibido_total}" style="text-align:right;"><b>${n(r.cant_recibido_total)}</b></td>
       </tr>
     `;
   }).join("");
 
-  tb.querySelectorAll("[data-row]").forEach(row=>{
+  // Inicializar selección de celdas
+  cellSelection.init(tb);
+  
+  // Renderizar filtros de columnas
+  bindColumnFilters();
+
+  tb.querySelectorAll(".dc-row").forEach(row=>{
     row.addEventListener("click", (ev)=>{
       if (ev.target.closest("button")) return;
-      state.selectedId = row.dataset.row;
+      state.selectedId = row.dataset.id;
       state.mode = "details";
-      renderTable();
+      // Solo actualizar drawer, no regenerar tabla
       renderDrawer();
     });
   });
 
-  tb.querySelectorAll("[data-edit]").forEach(b =>
-    b.addEventListener("click", () => openEdit(b.dataset.edit))
-  );
-  tb.querySelectorAll("[data-del]").forEach(b =>
-    b.addEventListener("click", () => onDelete(b.dataset.del))
-  );
+  // Doble-click para edición inline
+  tb.querySelectorAll(".cell-text").forEach(cell => {
+    cell.addEventListener("dblclick", (e) => {
+      e.stopPropagation();
+      enableInlineEdit(cell);
+    });
+  });
 }
 
 /* =========================
@@ -420,12 +780,11 @@ function drawerForm(r){
   return `
     <form id="drawerForm" class="form-grid">
       <div>
-        <label class="dc-label">PRODUCTO (CLAVE)
-          <div class="dc-suggest-wrap">
-            <input id="cProductoKey" class="dc-input" placeholder="NOMBRE | CONDICIÓN" value="${extKey}">
-            <div class="suggestions"></div>
-          </div>
-        </label>
+        <label class="dc-label">PRODUCTO (CLAVE)</label>
+        <div class="dc-suggest-wrap">
+          <input id="cProductoKey" class="dc-input" placeholder="NOMBRE | CONDICIÓN" value="${extKey}">
+          <div class="producto-suggestions"></div>
+        </div>
         <div id="prodChips">${productChips(r ? findProductoByKey(r.external_key) : null)}</div>
       </div>
 
@@ -514,9 +873,14 @@ function setProductoSelected(p){
   const chips = $("#prodChips");
   if (chips) chips.innerHTML = productChips(p);
 
-  $("#cNProducto").value = p?.nombre || "";
-  $("#cCategoria").value = p?.categoria || "";
-  $("#cCondicion").value = p?.condicion || "";
+  // Solo actualizar si los elementos existen
+  const cNProducto = $("#cNProducto");
+  const cCategoria = $("#cCategoria");
+  const cCondicion = $("#cCondicion");
+  
+  if (cNProducto) cNProducto.value = p?.nombre || "";
+  if (cCategoria) cCategoria.value = p?.categoria || "";
+  if (cCondicion) cCondicion.value = p?.condicion || "";
 }
 
 function computeCostoUnitario(){
@@ -555,9 +919,18 @@ function restrictEstadoForRecepcion(enable){
 }
 
 function setupAutocompleteProducto(inputId){
+  console.log('[Setup Autocomplete] Iniciando para inputId:', inputId);
+  
   const input = document.getElementById(inputId);
-  if (!input) return;
+  if (!input) {
+    console.warn('[Setup Autocomplete] NO ENCONTRÓ EL ELEMENTO:', inputId);
+    setTimeout(() => setupAutocompleteProducto(inputId), 100);
+    return;
+  }
+  
+  console.log('[Setup Autocomplete] Elemento encontrado. Productos cargados:', state.productos.length);
 
+  // Crear contenedor de sugerencias si no existe
   let wrap = input.closest('.dc-suggest-wrap');
   if (!wrap){
     wrap = document.createElement('div');
@@ -566,154 +939,270 @@ function setupAutocompleteProducto(inputId){
     wrap.appendChild(input);
   }
 
-  let sugg = wrap.querySelector('.suggestions');
+  let sugg = wrap.querySelector('.producto-suggestions');
   if (!sugg){
     sugg = document.createElement('div');
-    sugg.className = 'suggestions';
-    sugg.style.display = 'none';
+    sugg.className = 'producto-suggestions';
     wrap.appendChild(sugg);
   }
 
-  let activeIdx = -1;
-  let items = [];
-
-  function hide(){ sugg.style.display = 'none'; activeIdx = -1; items = []; }
-  function showList(list){
-    items = list.slice(0, 14);
-    if (!items.length){ hide(); return; }
-
-    sugg.innerHTML = items.map((p, i) => `
-      <div class="suggestion-item" data-idx="${i}" data-val="${escapeHtml(p.external_key)}">
-        <div style="font-weight:900;">${escapeHtml(p.external_key)}</div>
-        <div style="opacity:.7; font-size:12px;">${escapeHtml(p.categoria||"")} · STOCK ${n(p.stock)} · TRÁNSITO ${n(p.stock_transito)} · $${money(p.costo_prom)}</div>
-      </div>
-    `).join("");
-
-    sugg.querySelectorAll('.suggestion-item').forEach(it => it.addEventListener('mousedown', (ev)=>{
-      ev.preventDefault();
-      const key = it.dataset.val;
-      input.value = key;
-      const p = findProductoByKey(key);
-      setProductoSelected(p);
-      hide();
-    }));
-
-    sugg.style.display = 'block';
-    activeIdx = -1;
-  }
-
-  function onInput(){
-    const q = normalize(input.value || '');
-    if (!q) { hide(); setProductoSelected(null); return; }
-
-    const list = state.productos
-      .filter(p => normalize(p.external_key).includes(q))
-      .sort((a,b)=> (a.external_key||"").localeCompare(b.external_key||""));
-
-    showList(list);
-  }
-
-  function onKey(ev){
-    if (sugg.style.display === 'none') return;
-    const nodes = sugg.querySelectorAll('.suggestion-item');
-    if (!nodes.length) return;
-
-    if (ev.key === 'ArrowDown'){
-      ev.preventDefault(); activeIdx = Math.min(activeIdx + 1, nodes.length - 1); updateActive();
-    } else if (ev.key === 'ArrowUp'){
-      ev.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); updateActive();
-    } else if (ev.key === 'Enter'){
-      if (activeIdx >= 0 && nodes[activeIdx]){
-        ev.preventDefault(); nodes[activeIdx].dispatchEvent(new MouseEvent('mousedown'));
-      }
-    } else if (ev.key === 'Escape'){
-      hide();
+  const showSuggestions = (query) => {
+    const filtered = state.productos.filter(p => {
+      return normalize(p.external_key || '').includes(query) || query === "";
+    });
+    
+    console.log('[Autocomplete] Búsqueda:', query, '-> Resultados:', filtered.length);
+    
+    if (filtered.length === 0) {
+      sugg.innerHTML = `<div class="producto-suggestion-item" style="padding:12px;color:#999;font-style:italic;">No hay productos</div>`;
+      sugg.classList.add("visible");
+    } else {
+      sugg.innerHTML = filtered
+        .map(p => `
+          <div class="producto-suggestion-item" data-key="${escapeHtml(p.external_key || '')}" style="padding:10px 12px;border-bottom:1px solid rgba(0,0,0,0.05);">
+            <div style="font-weight:700;color:#2196f3;">${escapeHtml(p.external_key || '')}</div>
+            <div style="font-size:11px;color:#666;margin-top:2px;">${escapeHtml(p.categoria || '')} · Stock ${n(p.stock || 0)} · Tránsito ${n(p.stock_transito || 0)}</div>
+          </div>
+        `)
+        .join("");
+      
+      sugg.classList.add("visible");
+      
+      // Bind click events a cada sugerencia
+      sugg.querySelectorAll(".producto-suggestion-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+          const key = item.dataset.key;
+          console.log('[Autocomplete] Seleccionado:', key);
+          input.value = key;
+          const p = findProductoByKey(key);
+          setProductoSelected(p);
+          sugg.classList.remove("visible");
+        });
+      });
     }
-  }
+    
+    // Posicionar el dropdown (position: fixed)
+    const rect = input.getBoundingClientRect();
+    sugg.style.top = (rect.bottom + 4) + 'px';
+    sugg.style.left = rect.left + 'px';
+    sugg.style.width = Math.max(rect.width, 250) + 'px';
+  };
 
-  function updateActive(){
-    const nodes = sugg.querySelectorAll('.suggestion-item');
-    nodes.forEach((n, i)=> n.classList.toggle('active', i === activeIdx));
-    if (activeIdx >= 0 && nodes[activeIdx]) nodes[activeIdx].scrollIntoView({ block:'nearest' });
-  }
+  input.addEventListener("input", (e) => {
+    const query = normalize(e.target.value || '');
+    if (query === "") {
+      sugg.classList.remove("visible");
+    } else {
+      showSuggestions(query);
+    }
+  });
 
-  input.addEventListener('input', onInput);
-  input.addEventListener('keydown', onKey);
-  input.addEventListener('blur', ()=> setTimeout(hide, 180));
+  input.addEventListener("focus", (e) => {
+    const query = normalize(e.target.value || '');
+    // Mostrar todas si está vacío, o filtradas si hay texto
+    showSuggestions(query);
+  });
+
+  input.addEventListener("blur", () => {
+    setTimeout(() => {
+      sugg.classList.remove("visible");
+    }, 200);
+  });
+
+  console.log('[Setup Autocomplete] COMPLETADO');
 }
 
 function wireDrawerForm(r){
+  console.log('[wireDrawerForm] Iniciando...');
   const recepMode = !!window.__dc_recepcion_mode;
 
-  // defaults
-  $("#cFechaCompra").value = todayISO();
-  $("#cFechaRecibido").value = "";
+  // Esperar a que los elementos estén disponibles
+  const waitForElement = (id) => {
+    return new Promise((resolve) => {
+      let attempts = 0;
+      const check = () => {
+        const el = document.getElementById(id);
+        if (el) {
+          console.log('[wireDrawerForm] Elemento encontrado:', id);
+          resolve(el);
+        } else if (attempts < 10) {
+          attempts++;
+          setTimeout(check, 50);
+        } else {
+          console.error('[wireDrawerForm] TIMEOUT esperando elemento:', id);
+          resolve(null);
+        }
+      };
+      check();
+    });
+  };
 
-  // si edita, llenar valores
-  if (r){
-    $("#cProductoKey").value = r.external_key || "";
-    $("#cRastreo").value = r.n_rastreo || "";
-    $("#cEstado").value = r.estado_transito || "EN_TRANSITO";
-    $("#cCantidad").value = n(r.cantidad) || 1;
-    $("#cTotalCosto").value = n(r.total_costo) || 0;
-    $("#cCostoUnitario").value = money(n(r.costo_unitario));
-    $("#cProveedorEnvio").value = r.proveedor_envio || "";
-    $("#cTienda").value = r.tienda || "";
-    $("#cUsuario").value = r.usuario || "";
-    $("#cFechaCompra").value = r.fecha_compra || "";
-    $("#cFechaRecibido").value = r.fecha_recibido || "";
-  } else {
-    $("#cEstado").value = "EN_TRANSITO";
-    $("#cCantidad").value = 1;
-    $("#cTotalCosto").value = 0;
-    $("#cCostoUnitario").value = "0.00";
-    $("#cCostoEnvioAdd").value = "0";
-    $("#cCantRecibidoAdd").value = "0";
-  }
+  // Ejecutar en async para esperar elementos
+  (async () => {
+    // defaults
+    const cFechaCompra = document.getElementById('cFechaCompra');
+    const cFechaRecibido = document.getElementById('cFechaRecibido');
+    const cProductoKey = document.getElementById('cProductoKey');
+    const cRastreo = document.getElementById('cRastreo');
+    const cEstado = document.getElementById('cEstado');
+    const cCantidad = document.getElementById('cCantidad');
+    const cTotalCosto = document.getElementById('cTotalCosto');
+    const cCostoUnitario = document.getElementById('cCostoUnitario');
+    const cProveedorEnvio = document.getElementById('cProveedorEnvio');
+    const cTienda = document.getElementById('cTienda');
+    const cUsuario = document.getElementById('cUsuario');
+    const cCostoEnvioAdd = document.getElementById('cCostoEnvioAdd');
+    const cCantRecibidoAdd = document.getElementById('cCantRecibidoAdd');
 
-  // producto seleccionado
-  if (r){
-    const p = findProductoByKey(r.external_key);
-    setProductoSelected(p);
-  } else {
-    setProductoSelected(null);
-  }
+    if (cFechaCompra) cFechaCompra.value = todayISO();
+    if (cFechaRecibido) cFechaRecibido.value = "";
 
-  // autocomplete producto (solo cuando es new)
-  if (!r){
-    setupAutocompleteProducto("cProductoKey");
-  }
-
-  // calcular costo unitario cuando cambia cantidad o total
-  const recalc = ()=> computeCostoUnitario();
-  $("#cCantidad").addEventListener("input", recalc);
-  $("#cTotalCosto").addEventListener("input", recalc);
-
-  // modo recepcion o estado recepcion ya existente
-  const estadoInicial = normalize($("#cEstado").value);
-  const isEstadoRecep = (estadoInicial === "RECIBIDO" || estadoInicial === "PENDIENTE_DE_RETIRAR" || estadoInicial === "RECIBIDO_PARCIALMENTE");
-  const enableRecep = recepMode || isEstadoRecep;
-
-  enableRecepcionFields(enableRecep);
-  restrictEstadoForRecepcion(enableRecep);
-
-  // si habilitamos recepcion, forzamos estado a uno permitido si no lo era
-  if (enableRecep){
-    const cur = normalize($("#cEstado").value);
-    if (cur !== "RECIBIDO" && cur !== "PENDIENTE_DE_RETIRAR"){
-      $("#cEstado").value = "RECIBIDO";
+    // si edita, llenar valores
+    if (r){
+      if (cProductoKey) cProductoKey.value = r.external_key || "";
+      if (cRastreo) cRastreo.value = r.n_rastreo || "";
+      if (cEstado) cEstado.value = r.estado_transito || "EN_TRANSITO";
+      if (cCantidad) cCantidad.value = n(r.cantidad) || 1;
+      if (cTotalCosto) cTotalCosto.value = n(r.total_costo) || 0;
+      if (cCostoUnitario) cCostoUnitario.value = money(n(r.costo_unitario));
+      if (cProveedorEnvio) cProveedorEnvio.value = r.proveedor_envio || "";
+      if (cTienda) cTienda.value = r.tienda || "";
+      if (cUsuario) cUsuario.value = r.usuario || "";
+      if (cFechaCompra) cFechaCompra.value = r.fecha_compra || "";
+      if (cFechaRecibido) cFechaRecibido.value = r.fecha_recibido || "";
+    } else {
+      if (cEstado) cEstado.value = "EN_TRANSITO";
+      if (cCantidad) cCantidad.value = 1;
+      if (cTotalCosto) cTotalCosto.value = 0;
+      if (cCostoUnitario) cCostoUnitario.value = "0.00";
+      if (cCostoEnvioAdd) cCostoEnvioAdd.value = "0";
+      if (cCantRecibidoAdd) cCantRecibidoAdd.value = "0";
     }
-  }
 
-  // cancelar
-  $("#btnCancelDrawer")?.addEventListener("click", ()=>{
-    window.__dc_recepcion_mode = false;
-    state.mode = state.selectedId ? "details" : "new";
-    renderDrawer();
-  });
+    // producto seleccionado
+    if (r){
+      const p = findProductoByKey(r.external_key);
+      setProductoSelected(p);
+    } else {
+      setProductoSelected(null);
+    }
 
-  // submit
-  $("#drawerForm")?.addEventListener("submit", (ev)=> onSave(ev, r));
+    // Autocomplete para Producto (igual a ventas.js)
+    if (!r && cProductoKey) {
+      const productoSuggestions = cProductoKey.closest('.dc-suggest-wrap')?.querySelector('.producto-suggestions');
+      
+      if (productoSuggestions) {
+        console.log('[wireDrawerForm] Configurando autocomplete de productos. Total productos:', state.productos.length);
+
+      const showSuggestions = (query) => {
+        const filtered = state.productos.filter(p => {
+          return normalize(p.external_key || '').includes(query) || query === "";
+        });
+        
+        console.log('[Autocomplete] Búsqueda:', query, '-> Resultados:', filtered.length);
+        
+        if (filtered.length === 0) {
+          productoSuggestions.innerHTML = `<div class="producto-suggestion-item">No hay coincidencias</div>`;
+          productoSuggestions.classList.add("visible");
+        } else {
+          productoSuggestions.innerHTML = filtered
+            .map(p => `<div class="producto-suggestion-item" data-key="${escapeHtml(p.external_key || '')}">${escapeHtml(p.external_key || '')} (Stock: ${n(p.stock || 0)})</div>`)
+            .join("");
+          productoSuggestions.classList.add("visible");
+          
+          // Bind click events a cada sugerencia
+          productoSuggestions.querySelectorAll(".producto-suggestion-item").forEach(item => {
+            item.addEventListener("click", () => {
+              const key = item.dataset.key;
+              console.log('[Autocomplete] Seleccionado:', key);
+              cProductoKey.value = key;
+              const p = findProductoByKey(key);
+              setProductoSelected(p);
+              productoSuggestions.classList.remove("visible");
+            });
+          });
+        }
+
+        // Posicionar el dropdown (position: fixed)
+        const rect = cProductoKey.getBoundingClientRect();
+        productoSuggestions.style.top = (rect.bottom + 4) + 'px';
+        productoSuggestions.style.left = rect.left + 'px';
+        productoSuggestions.style.width = Math.max(rect.width, 250) + 'px';
+      };
+
+      cProductoKey.addEventListener("input", (e) => {
+        const query = normalize(e.target.value || '');
+        if (query === "") {
+          productoSuggestions.classList.remove("visible");
+        } else {
+          showSuggestions(query);
+        }
+      });
+
+      cProductoKey.addEventListener("focus", (e) => {
+        const query = normalize(e.target.value || '');
+        if (query !== "") {
+          showSuggestions(query);
+        }
+      });
+
+      cProductoKey.addEventListener("blur", () => {
+        setTimeout(() => {
+          productoSuggestions.classList.remove("visible");
+          // Validar que si hay texto, exista un producto seleccionado
+          if (cProductoKey.value && !state.productoSelected) {
+            cProductoKey.value = "";
+          }
+        }, 200);
+      });
+      }
+    }
+
+    // calcular costo unitario cuando cambia cantidad o total
+    const recalc = ()=> computeCostoUnitario();
+    if (cCantidad) cCantidad.addEventListener("input", recalc);
+    if (cTotalCosto) cTotalCosto.addEventListener("input", recalc);
+
+    // resto del wiring...
+    const estadoInicial = normalize((cEstado?.value) || "");
+    const isEstadoRecep = (estadoInicial === "RECIBIDO" || estadoInicial === "PENDIENTE_DE_RETIRAR" || estadoInicial === "RECIBIDO_PARCIALMENTE");
+    const enableRecep = recepMode || isEstadoRecep;
+
+    enableRecepcionFields(enableRecep);
+    restrictEstadoForRecepcion(enableRecep);
+
+    if (enableRecep){
+      const cur = normalize((cEstado?.value) || "");
+      if (cur !== "RECIBIDO" && cur !== "PENDIENTE_DE_RETIRAR"){
+        if (cEstado) cEstado.value = "RECIBIDO";
+      }
+    }
+
+    // cancelar
+    const btnCancelDrawer = document.getElementById('btnCancelDrawer');
+    if (btnCancelDrawer) {
+      btnCancelDrawer.addEventListener("click", ()=>{
+        window.__dc_recepcion_mode = false;
+        state.mode = state.selectedId ? "details" : "new";
+        renderDrawer();
+      });
+    }
+
+    // submit
+    const drawerForm = document.getElementById('drawerForm');
+    if (drawerForm) {
+      drawerForm.addEventListener("submit", async (ev) => {
+        try {
+          await onSave(ev, r);
+        } catch(err) {
+          console.error('[onSave] ERROR:', err);
+          alert('ERROR AL GUARDAR: ' + (err?.message || err));
+        }
+      });
+    }
+
+    console.log('[wireDrawerForm] COMPLETADO');
+  })();
 }
 
 /* =========================
@@ -1184,6 +1673,17 @@ export async function mountComprasGeneral(container){
 
   $("#btnNuevo").addEventListener("click", openNew);
   $("#btnRefrescar").addEventListener("click", refresh);
+  
+  // Toggle drawer (minimizar/expandir panel de detalles)
+  $("#btnToggleDrawer")?.addEventListener("click", ()=>{
+    const gridContainer = container.querySelector('.inv-grid');
+    const btn = document.getElementById('btnToggleDrawer');
+    if (gridContainer && btn) {
+      const isMinimized = gridContainer.classList.toggle('drawer-minimized');
+      btn.textContent = isMinimized ? '▶ Detalles' : '▼ Detalles';
+      localStorage.setItem('dc_compras_drawer_minimized', isMinimized ? '1' : '0');
+    }
+  });
 
   $("#cSearch").addEventListener("input", applyFilters);
   $("#fEstadoTransito").addEventListener("change", applyFilters);
@@ -1191,6 +1691,16 @@ export async function mountComprasGeneral(container){
   $("#fUsuario").addEventListener("input", applyFilters);
 
   await refresh();
+  
+  // Restaurar estado del drawer
+  const isMinimized = localStorage.getItem('dc_compras_drawer_minimized') === '1';
+  const grid = container.querySelector('.inv-grid');
+  const btn = container.querySelector('#btnToggleDrawer');
+  if (isMinimized && grid && btn) {
+    grid.classList.add('drawer-minimized');
+    btn.textContent = '▶ Detalles';
+  }
+  
   renderTable();
   renderDrawer();
 

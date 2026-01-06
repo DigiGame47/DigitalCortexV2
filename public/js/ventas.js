@@ -14,7 +14,7 @@
 
 import { db } from "./firebase.js";
 import {
-  collection, getDocs, addDoc, updateDoc, deleteDoc, doc,
+  collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc,
   serverTimestamp, query, orderBy, runTransaction
 } from "https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js";
 
@@ -32,7 +32,11 @@ const ventasState = {
   inventario: [],
   selectedId: null,
   mode: "details", // details | new | edit
+  filters: {}, // filtros de columnas activos
   _styleObserver: null, // referencia al MutationObserver para cleanup
+  // PAGINACIÓN
+  pageSize: 50,
+  currentPage: 1,
 };
 
 // Constantes para selects
@@ -51,6 +55,41 @@ function todayISO(){
   const pad = (x)=> String(x).padStart(2,"0");
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
+
+// Conversión de fecha Excel a ISO
+function excelDateToISO(excelDate) {
+  if (!excelDate) return "";
+  const num = Number(excelDate);
+  if (isNaN(num)) {
+    // Si ya es un string con formato de fecha, devolverlo
+    const str = (excelDate + "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str; // YYYY-MM-DD
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+      // DD/MM/YYYY → YYYY-MM-DD
+      const [d, m, y] = str.split("/");
+      return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
+    }
+    return str;
+  }
+  // Excel date serial (días desde 1900-01-01, con bug del 1900)
+  // día 1 = 1900-01-01, día 60 = 1900-02-29 (año bisiesto falso)
+  const excelEpoch = new Date(1900, 0, 1);
+  const date = new Date(excelEpoch.getTime() + (num - 1) * 24 * 60 * 60 * 1000);
+  const year = date.getFullYear();
+  const month = (date.getMonth() + 1).toString().padStart(2, "0");
+  const day = date.getDate().toString().padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+// Formatear fecha para mostrar: YYYY-MM-DD → DD/MM/YYYY
+function formatFechaDisplay(fecha) {
+  if (!fecha) return "";
+  const isoDate = excelDateToISO(fecha);
+  if (!isoDate) return "";
+  const [year, month, day] = isoDate.split("-");
+  return `${day}/${month}/${year}`;
+}
+
 function escapeHtml(s){ return (s||'').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function showToast(msg, type="info"){
   // Toast simple: puede mejorarse con animaciones o librería
@@ -94,31 +133,64 @@ function ventasTemplate(){
 
         <div style="display:flex;gap:10px;align-items:center;">
           <button id="vBtnNuevo" class="dc-btn">+ Nueva venta</button>
+          <button id="vBtnDescargarCsv" class="dc-btn dc-btn-ghost" title="Descargar plantilla CSV">⬇ Plantilla</button>
+          <button id="vBtnCargarCsv" class="dc-btn dc-btn-ghost" title="Cargar CSV">⬆ Cargar CSV</button>
           <button id="vBtnRefrescar" class="dc-btn dc-btn-ghost">Refrescar</button>
+          <button id="vBtnToggleDrawer" class="dc-btn dc-btn-ghost" title="Minimizar/Expandir panel de detalles">▼ Detalles</button>
         </div>
       </div>
 
       <div style="margin-top:12px;" class="dc-table-wrap">
-        <table class="dc-table">
+        <div id="cellSumIndicator" class="cell-sum-indicator" style="display:none;"></div>
+        <table class="dc-table ventas-table-sticky">
           <thead>
             <tr>
-              <th>Foto</th>
-              <th>FECHA</th>
-              <th>PRODUCTO</th>
-              <th>CLIENTE</th>
-              <th>TEL</th>
-              <th>ESTADO</th>
-              <th style="text-align:right;">TOTAL</th>
+              <th style="position: sticky; left: 0; z-index: 10; background: inherit;" class="th-filterable" data-col="cliente">
+                CLIENTE
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th style="position: sticky; left: 200px; z-index: 10; background: inherit;" class="th-filterable" data-col="estado">
+                ESTADO
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="fecha">
+                FECHA
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th class="th-filterable" data-col="telefono">
+                CELULAR
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th style="text-align:right;" class="th-filterable" data-col="liquidacion">
+                LIQ.
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
               <th style="text-align:right;">ENVÍO</th>
-              <th style="text-align:right;">PRODUCTO</th>
               <th style="text-align:right;">COSTO</th>
+              <th class="th-filterable" data-col="producto">
+                PRODUCTO
+                <span class="filter-icon" title="Filtrar">⊙</span>
+                <div class="filter-dropdown" style="display:none;"></div>
+              </th>
+              <th style="text-align:right;">PRECIO</th>
               <th style="text-align:right;">GANANCIA</th>
-              <th>LIQ.</th>
-              <th>ACCIONES</th>
+              <th style="text-align:right;">TOTAL</th>
+              <th>Foto</th>
             </tr>
           </thead>
           <tbody id="vTbody"></tbody>
         </table>
+      </div>
+
+      <div style="margin-top:16px;display:flex;gap:8px;align-items:center;justify-content:center;" id="vPaginationDiv">
+        <button id="vBtnPrevPage" class="dc-btn dc-btn-ghost" style="padding:6px 12px;font-size:12px;">← Anterior</button>
+        <span id="vPageInfo" style="min-width:120px;text-align:center;font-size:12px;color:var(--muted);">Página 1</span>
+        <button id="vBtnNextPage" class="dc-btn dc-btn-ghost" style="padding:6px 12px;font-size:12px;">Siguiente →</button>
       </div>
     </div>
 
@@ -187,32 +259,308 @@ function initResizer(container){
    =========================== */
 function rowHTML(v){
   const img = v.imagen_url ? `<img src="${v.imagen_url}" style="width:34px;height:34px;border-radius:10px;object-fit:cover;border:1px solid rgba(15,23,42,.10)" />` : `—`;
+  const fechaDisplay = formatFechaDisplay(v.fecha);
+  
+  // Clase condicional para el estado
+  let estadoClass = "estado-otro";
+  if (v.estado_venta === "VENTA FINALIZADA") {
+    estadoClass = "estado-finalizada";
+  } else if (v.estado_venta === "PEDIDO PROGRAMADO") {
+    estadoClass = "estado-pendiente";
+  }
+  
   return `
     <tr class="dc-row" data-id="${v.id}">
-      <td>${img}</td>
-      <td>${v.fecha || ""}</td>
-      <td title="${v.producto_key || ""}">${v.producto_key || ""}</td>
-      <td>${v.cliente || ""}</td>
-      <td>${v.telefono || ""}</td>
-      <td>${v.estado_venta || ""}</td>
-      <td style="text-align:right;">$${money(v.total_pago_cliente)}</td>
-      <td style="text-align:right;">$${money(v.precio_envio)}</td>
-      <td style="text-align:right;">$${money(v.precio_producto)}</td>
-      <td style="text-align:right;">$${money(v.costo_producto)}</td>
-      <td style="text-align:right;">$${money(v.ganancia)}</td>
-      <td>${v.estado_liquidacion || ""}</td>
-      <td>
-        <button class="dc-btn dc-btn-ghost vEditBtn" data-id="${v.id}">Editar</button>
-        <button class="dc-btn dc-danger vDelBtn" data-id="${v.id}">Eliminar</button>
-      </td>
+      <td class="cell-text cell-sticky-left" style="position: sticky; left: 0; z-index: 1;" data-row="${v.id}" data-col="cliente">${v.cliente || ""}</td>
+      <td class="cell-text cell-sticky-mid" style="position: sticky; left: 200px; z-index: 1;" data-row="${v.id}" data-col="estado"><span class="${estadoClass}">${v.estado_venta || ""}</span></td>
+      <td class="cell-text" data-row="${v.id}" data-col="fecha" title="${v.fecha || ""}">${fechaDisplay}</td>
+      <td class="cell-text" data-row="${v.id}" data-col="telefono">${v.telefono || ""}</td>
+      <td class="cell-num" data-row="${v.id}" data-col="liquidacion" style="text-align:right;">${v.estado_liquidacion || ""}</td>
+      <td class="cell-num" data-row="${v.id}" data-col="envio" data-value="${v.precio_envio}" style="text-align:right;">$${money(v.precio_envio)}</td>
+      <td class="cell-num" data-row="${v.id}" data-col="costo" data-value="${v.costo_producto}" style="text-align:right;">$${money(v.costo_producto)}</td>
+      <td class="cell-text" data-row="${v.id}" data-col="producto" title="${v.producto_key || ""}">${v.producto_key || ""}</td>
+      <td class="cell-num" data-row="${v.id}" data-col="precio" data-value="${v.precio_producto}" style="text-align:right;">$${money(v.precio_producto)}</td>
+      <td class="cell-num" data-row="${v.id}" data-col="ganancia" data-value="${v.ganancia}" style="text-align:right;">$${money(v.ganancia)}</td>
+      <td class="cell-num" data-row="${v.id}" data-col="total" data-value="${v.total_pago_cliente}" style="text-align:right;">$${money(v.total_pago_cliente)}</td>
+      <td class="cell-no-select">${img}</td>
     </tr>
   `;
+}
+
+/* ===========================
+   CELL SELECTION & SUM
+   =========================== */
+const cellSelection = {
+  selected: new Set(),
+  lastSelected: null,
+  
+  init(tbody) {
+    // Eventos de selección
+    tbody.querySelectorAll(".cell-num, .cell-text").forEach(cell => {
+      cell.addEventListener("click", (e) => {
+        e.stopPropagation();
+        this.handleCellClick(cell, e);
+      });
+      cell.style.cursor = "cell";
+    });
+  },
+  
+  handleCellClick(cell, e) {
+    const rowId = cell.dataset.row;
+    
+    if (e.ctrlKey || e.metaKey) {
+      // Toggle selección individual
+      const key = this.getCellKey(cell);
+      if (this.selected.has(key)) {
+        this.selected.delete(key);
+        cell.classList.remove("cell-selected");
+      } else {
+        this.selected.add(key);
+        cell.classList.add("cell-selected");
+      }
+    } else if (e.shiftKey && this.lastSelected) {
+      // Seleccionar rango
+      this.selectRange(this.lastSelected, cell);
+    } else {
+      // Selección simple + mostrar detalle
+      this.clearSelection();
+      const key = this.getCellKey(cell);
+      this.selected.add(key);
+      cell.classList.add("cell-selected");
+      this.lastSelected = cell;
+      // Abrir detalle de la fila
+      if (rowId) {
+        openDetails(rowId);
+      }
+    }
+    this.updateSum();
+  },
+  
+  getCellKey(cell) {
+    return `${cell.dataset.row}|${cell.dataset.col}`;
+  },
+  
+  selectRange(from, to) {
+    const tbody = document.querySelector(".vTbody") || document.querySelector("tbody#vTbody");
+    if (!tbody) return;
+    
+    const fromRow = Array.from(tbody.querySelectorAll(".dc-row")).findIndex(r => r.dataset.id === from.dataset.row);
+    const toRow = Array.from(tbody.querySelectorAll(".dc-row")).findIndex(r => r.dataset.id === to.dataset.row);
+    
+    const startRow = Math.min(fromRow, toRow);
+    const endRow = Math.max(fromRow, toRow);
+    
+    this.clearSelection();
+    
+    const rows = Array.from(tbody.querySelectorAll(".dc-row"));
+    for (let i = startRow; i <= endRow; i++) {
+      const row = rows[i];
+      const cells = row.querySelectorAll(".cell-num, .cell-text");
+      cells.forEach(cell => {
+        const key = this.getCellKey(cell);
+        this.selected.add(key);
+        cell.classList.add("cell-selected");
+      });
+    }
+  },
+  
+  clearSelection() {
+    document.querySelectorAll(".cell-selected").forEach(cell => {
+      cell.classList.remove("cell-selected");
+    });
+    this.selected.clear();
+  },
+  
+  updateSum() {
+    const tbody = document.querySelector("tbody#vTbody");
+    if (!tbody) return;
+    
+    let total = 0;
+    let count = 0;
+    
+    this.selected.forEach(key => {
+      const [rowId, col] = key.split("|");
+      const cell = tbody.querySelector(`[data-row="${rowId}"][data-col="${col}"]`);
+      if (cell && cell.classList.contains("cell-num")) {
+        const value = parseFloat(cell.dataset.value) || 0;
+        total += value;
+        count++;
+      }
+    });
+    
+    const indicator = document.getElementById("cellSumIndicator");
+    if (indicator) {
+      if (count > 0) {
+        indicator.innerHTML = `<strong>Suma: $${total.toFixed(2)}</strong> (${count} celdas)`;
+        indicator.style.display = "block";
+      } else {
+        indicator.style.display = "none";
+      }
+    }
+  }
+};
+
+/* ===========================
+   COLUMN FILTERS
+   =========================== */
+function getColumnValues(col) {
+  // Obtiene valores únicos de una columna desde TODOS los datos
+  const values = new Set();
+  ventasState.ventas.forEach(v => {
+    let val = "";
+    switch(col) {
+      case "fecha": 
+        // Normalizar la fecha a formato YYYY/MM/DD
+        let fechaRaw = v.fecha || "";
+        if (fechaRaw) {
+          // Intentar convertir de varios formatos a YYYY-MM-DD primero
+          let fechaISO = excelDateToISO(fechaRaw);
+          if (fechaISO && fechaISO.length > 0) {
+            const parts = fechaISO.split("-");
+            if (parts.length === 3) {
+              val = `${parts[0]}/${parts[1]}/${parts[2]}`;
+            } else {
+              val = fechaRaw;
+            }
+          } else {
+            val = fechaRaw;
+          }
+        }
+        break;
+      case "producto": val = v.producto_key || ""; break;
+      case "cliente": val = v.cliente || ""; break;
+      case "telefono": val = v.telefono || ""; break;
+      case "estado": val = v.estado_venta || ""; break;
+      case "liquidacion": val = v.estado_liquidacion || ""; break;
+    }
+    if (val) values.add(val);
+  });
+  
+  // Para fecha, ordenar descendente (fechas más recientes primero)
+  if (col === "fecha") {
+    return Array.from(values).sort((a, b) => {
+      const [ay, am, ad] = a.split("/");
+      const [by, bm, bd] = b.split("/");
+      return new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad);
+    });
+  }
+  
+  return Array.from(values).sort();
+}
+
+function applyColumnFilter(col, value) {
+  // Aplica filtro en una columna específica
+  if (value === "") {
+    delete ventasState.filters[col];
+  } else {
+    ventasState.filters[col] = value;
+  }
+  
+  applyFilters();
+}
+
+function applyFilters() {
+  // Combina búsqueda + filtros de columnas
+  const search = ($("#vSearch")?.value || "").toLowerCase();
+  const estadoVenta = ($("#vEstadoVenta")?.value || "").trim();
+  const liquidacion = ($("#vLiquidacion")?.value || "").trim();
+  const columnFilters = ventasState.filters || {};
+  
+  // Obtener mes actual por defecto
+  const hoy = new Date();
+  const mesActual = `${hoy.getFullYear()}/${String(hoy.getMonth() + 1).padStart(2, '0')}`;
+  
+  ventasState.filtered = ventasState.ventas.filter(v => {
+    // Búsqueda general
+    if (search) {
+      const str = `${v.cliente} ${v.producto_key} ${v.telefono} ${v.estado_venta}`.toLowerCase();
+      if (!str.includes(search)) return false;
+    }
+    
+    // Filtro estado venta (exact match, respetando mayúsculas)
+    if (estadoVenta && (v.estado_venta || "").trim() !== estadoVenta) return false;
+    
+    // Filtro liquidación (exact match, respetando mayúsculas)
+    if (liquidacion && (v.estado_liquidacion || "").trim() !== liquidacion) return false;
+    
+    // Filtros de columnas (exact match, respetando mayúsculas)
+    for (const [col, val] of Object.entries(columnFilters)) {
+      let cellVal = "";
+      switch(col) {
+        case "fecha": 
+          // Convertir formato a YYYY/MM/DD para comparar
+          let fechaRaw = v.fecha || "";
+          if (fechaRaw) {
+            let fechaISO = excelDateToISO(fechaRaw);
+            if (fechaISO) {
+              const [year, month, day] = fechaISO.split("-");
+              cellVal = `${year}/${month}/${day}`;
+            }
+          }
+          break;
+        case "producto": cellVal = v.producto_key || ""; break;
+        case "cliente": cellVal = v.cliente || ""; break;
+        case "telefono": cellVal = v.telefono || ""; break;
+        case "estado": cellVal = v.estado_venta || ""; break;
+        case "liquidacion": cellVal = v.estado_liquidacion || ""; break;
+      }
+      if (cellVal.trim() !== val.trim()) return false;
+    }
+    
+    // Por defecto, mostrar solo mes actual (si no hay filtro de fecha aplicado)
+    if (!columnFilters.fecha) {
+      let fechaRaw = v.fecha || "";
+      if (fechaRaw) {
+        let fechaISO = excelDateToISO(fechaRaw);
+        if (fechaISO) {
+          const [year, month, day] = fechaISO.split("-");
+          const fechaFormato = `${year}/${month}`;
+          if (fechaFormato !== mesActual) return false;
+        }
+      }
+    }
+    
+    return true;
+  });
+  
+  // Resetear a primera página cuando se aplican filtros
+  ventasState.currentPage = 1;
+  renderTable();
 }
 
 function renderTable(){
   const tbody = $("#vTbody");
   if(!tbody) return;
-  tbody.innerHTML = ventasState.filtered.map(rowHTML).join("");
+  
+  // Paginación: calcular índices
+  const total = ventasState.filtered.length;
+  const totalPages = Math.ceil(total / ventasState.pageSize);
+  
+  // Validar página actual
+  if (ventasState.currentPage < 1) ventasState.currentPage = 1;
+  if (ventasState.currentPage > totalPages) ventasState.currentPage = totalPages || 1;
+  
+  const startIdx = (ventasState.currentPage - 1) * ventasState.pageSize;
+  const endIdx = startIdx + ventasState.pageSize;
+  const pageData = ventasState.filtered.slice(startIdx, endIdx);
+  
+  // Renderizar filas de la página actual
+  tbody.innerHTML = pageData.map(rowHTML).join("");
+
+  // Inicializar selección de celdas
+  cellSelection.init(tbody);
+  
+  // Actualizar controles de paginación
+  const btnPrev = $("#vBtnPrevPage");
+  const btnNext = $("#vBtnNextPage");
+  const pageInfo = $("#vPageInfo");
+  
+  if (btnPrev) btnPrev.disabled = ventasState.currentPage <= 1;
+  if (btnNext) btnNext.disabled = ventasState.currentPage >= totalPages;
+  if (pageInfo) pageInfo.textContent = `Página ${ventasState.currentPage} de ${totalPages || 1} (${total} registros)`;
+  
+  // Renderizar filtros de columnas
+  bindColumnFilters();
 
   // click row -> detalle
   tbody.querySelectorAll(".dc-row").forEach(tr=>{
@@ -225,17 +573,174 @@ function renderTable(){
   });
 
   // botones
-  tbody.querySelectorAll(".vEditBtn").forEach(btn=>{
-    btn.addEventListener("click", (e)=>{
+  // Doble-click para edición inline
+  tbody.querySelectorAll(".cell-text").forEach(cell => {
+    cell.addEventListener("dblclick", (e) => {
       e.stopPropagation();
-      openEdit(btn.dataset.id);
+      enableInlineEdit(cell);
     });
   });
-  tbody.querySelectorAll(".vDelBtn").forEach(btn=>{
-    btn.addEventListener("click", async (e)=>{
-      e.stopPropagation();
-      await deleteVenta(btn.dataset.id);
+}
+
+function bindColumnFilters() {
+  // Binding de filtros en headers
+  setTimeout(() => {
+    const filterHeaders = document.querySelectorAll(".th-filterable");
+    
+    filterHeaders.forEach(th => {
+      const col = th.dataset.col;
+      const icon = th.querySelector(".filter-icon");
+      const dropdown = th.querySelector(".filter-dropdown");
+      
+      if (!icon || !dropdown) return;
+      
+      // Remover eventos anteriores (si existen) para evitar duplicados
+      const newIcon = icon.cloneNode(true);
+      icon.parentNode.replaceChild(newIcon, icon);
+      
+      // Agregar evento de click
+      newIcon.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        // Cerrar todos los otros dropdowns
+        document.querySelectorAll(".filter-dropdown").forEach(d => {
+          if (d !== dropdown) d.style.display = "none";
+        });
+        
+        const isOpen = dropdown.style.display !== "none" && dropdown.style.display !== "";
+        
+        if (!isOpen) {
+          // Renderizar opciones
+          const values = getColumnValues(col);
+          const current = ventasState.filters?.[col] || "";
+          
+          dropdown.innerHTML = `
+            <div style="padding:8px;">
+              <div class="filter-option ${current === "" ? "active" : ""}" data-value="">
+                ✓ Todos
+              </div>
+              ${values.map(v => {
+                // Formatear fechas si es columna fecha
+                const displayValue = col === "fecha" ? formatFechaDisplay(v) : v;
+                return `
+                <div class="filter-option ${current === v ? "active" : ""}" data-value="${v}">
+                  ✓ ${displayValue}
+                </div>
+              `}).join("")}
+            </div>
+          `;
+          
+          // Eventos de selección en opciones
+          dropdown.querySelectorAll(".filter-option").forEach(opt => {
+            opt.addEventListener("click", (e) => {
+              e.stopPropagation();
+              const value = opt.dataset.value;
+              applyColumnFilter(col, value);
+              dropdown.style.display = "none";
+            });
+          });
+          
+          dropdown.style.display = "block";
+        } else {
+          dropdown.style.display = "none";
+        }
+      });
     });
+    
+    // Cerrar dropdowns al hacer click fuera
+    document.addEventListener("click", (e) => {
+      // Si el click no está dentro de un encabezado filtrable, cerrar todos los dropdowns
+      if (!e.target.closest(".th-filterable")) {
+        document.querySelectorAll(".filter-dropdown").forEach(d => {
+          d.style.display = "none";
+        });
+      }
+    });
+    
+  }, 0);
+}
+
+/* ===========================
+   INLINE EDITING
+   =========================== */
+const editableFields = ["cliente", "telefono", "fecha"];
+
+function enableInlineEdit(cell) {
+  // Doble-click para editar
+  const col = cell.dataset.col;
+  const rowId = cell.dataset.row;
+  
+  if (!editableFields.includes(col)) return;
+  
+  const currentValue = cell.textContent;
+  
+  // Crear input de edición
+  const input = document.createElement("input");
+  input.className = "dc-input";
+  input.type = col === "fecha" ? "date" : "text";
+  input.value = currentValue;
+  input.style.padding = "4px 6px";
+  input.style.fontSize = "13px";
+  
+  // Reemplazar contenido de la celda
+  cell.innerHTML = "";
+  cell.appendChild(input);
+  cell.classList.add("editing");
+  input.focus();
+  input.select();
+  
+  // Función para guardar
+  const saveEdit = async () => {
+    const newValue = input.value.trim();
+    
+    if (newValue === currentValue) {
+      // Sin cambios
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+      return;
+    }
+    
+    try {
+      // Mostrar estado "guardando"
+      cell.innerHTML = `<span style="opacity:0.6;">Guardando...</span>`;
+      
+      // Obtener el documento para actualizar
+      const venta = ventasState.ventas.find(v => v.id === rowId);
+      if (!venta) throw new Error("Venta no encontrada");
+      
+      // Preparar actualización
+      const updateData = {};
+      updateData[col] = newValue;
+      
+      // Guardar en Firebase
+      const docRef = db.collection("ventas").doc(rowId);
+      await docRef.update(updateData);
+      
+      // Actualizar estado local
+      venta[col] = newValue;
+      
+      // Actualizar vista
+      cell.classList.remove("editing");
+      cell.textContent = newValue;
+      
+    } catch (error) {
+      console.error("Error guardando cambio:", error);
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+      alert("Error al guardar: " + error.message);
+    }
+  };
+  
+  // Guardar con Enter o Blur
+  input.addEventListener("blur", saveEdit);
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      saveEdit();
+    } else if (e.key === "Escape") {
+      cell.classList.remove("editing");
+      cell.textContent = currentValue;
+    }
   });
 }
 
@@ -253,6 +758,7 @@ function drawerHTML(data = {}){
         <div class="drawer-sub">${data.producto_key || ""}</div>
       </div>
       <div style="display:flex;gap:10px;">
+        ${isDetails ? `<button id="vBtnImprimir" class="dc-btn" style="background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%); box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);">🖨️ Imprimir</button>` : ""}
         <button id="vFormNuevo" class="dc-btn dc-btn-ghost">Nueva</button>
         <button id="vFormEditar" class="dc-btn">Editar</button>
       </div>
@@ -317,7 +823,10 @@ function drawerHTML(data = {}){
 
       <div>
         <label class="dc-label">PRECIO ENVÍO</label>
-        <input id="vPrecioEnvio" type="text" class="dc-input" value="${data.precio_envio ? '$' + money(data.precio_envio) : ""}" ${dis}/>
+        <div class="dc-suggest-wrap" id="vPrecioEnvioWrap" style="position: relative;">
+          <input id="vPrecioEnvio" type="text" class="dc-input" value="${data.precio_envio ? '$' + money(data.precio_envio) : ""}" ${dis} style="width: 100%;"/>
+          <div id="vPrecioEnvioSuggestions" class="suggestions" style="display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 1000; background: #ffffff; border: 1px solid #e0e0e0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); max-height: 200px; overflow-y: auto;"></div>
+        </div>
       </div>
 
       <div>
@@ -394,24 +903,6 @@ function renderDrawer(data){
 /* ===========================
    EVENTS: HEADER FILTERS
 =========================== */
-function applyFilters(){
-  const q = norm($("#vSearch")?.value);
-  const estado = $("#vEstadoVenta")?.value || "";
-  const liq = $("#vLiquidacion")?.value || "";
-
-  ventasState.filtered = ventasState.ventas.filter(v=>{
-    const blob = norm([
-      v.producto_key, v.cliente, v.telefono, v.estado_venta, v.origen_venta, v.nombre_campana
-    ].join(" "));
-    const okQ = !q || blob.includes(q);
-    const okE = !estado || v.estado_venta === estado;
-    const okL = !liq || v.estado_liquidacion === liq;
-    return okQ && okE && okL;
-  });
-
-  renderTable();
-}
-
 function bindHeaderEvents(){
   $("#vSearch")?.addEventListener("input", applyFilters);
   $("#vEstadoVenta")?.addEventListener("change", applyFilters);
@@ -432,8 +923,66 @@ function bindHeaderEvents(){
     });
   });
 
+  // CSV handlers
+  $("#vBtnDescargarCsv")?.addEventListener("click", descargarPlantillaVentas);
+  
+  $("#vBtnCargarCsv")?.addEventListener("click", () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".csv";
+    input.onchange = (e) => {
+      const file = e.target.files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          const csvText = evt.target?.result;
+          if (typeof csvText === "string") {
+            const parsed = parseCSVVentas(csvText);
+            console.log("Parsed CSV Ventas:", parsed);
+            if (parsed.rows.length > 0) {
+              mostrarVistaPreviaVentas(parsed);
+            } else {
+              const lines = csvText.trim().split("\n");
+              const headers = lines[0];
+              alert(`No se encontraron ventas en el CSV.\n\nCabecera detectada:\n${headers}\n\nAsegúrate de que:\n1. La primera fila sea la cabecera\n2. Haya al menos una fila de datos\n3. El campo "cliente" esté presente`);
+            }
+          }
+        };
+        reader.readAsText(file);
+      }
+    };
+    input.click();
+  });
+
   $("#vBtnRefrescar")?.addEventListener("click", async ()=>{
     await ventasLoadAll();
+  });
+
+  // Toggle drawer (minimizar/expandir panel de detalles)
+  $("#vBtnToggleDrawer")?.addEventListener("click", ()=>{
+    const container = document.querySelector('.page-ventas .inv-grid');
+    const btn = document.getElementById('vBtnToggleDrawer');
+    if (container && btn) {
+      const isMinimized = container.classList.toggle('drawer-minimized');
+      btn.textContent = isMinimized ? '▶ Detalles' : '▼ Detalles';
+      localStorage.setItem('dc_ventas_drawer_minimized', isMinimized ? '1' : '0');
+    }
+  });
+
+  // Paginación
+  $("#vBtnPrevPage")?.addEventListener("click", () => {
+    if (ventasState.currentPage > 1) {
+      ventasState.currentPage--;
+      renderTable();
+    }
+  });
+
+  $("#vBtnNextPage")?.addEventListener("click", () => {
+    const totalPages = Math.ceil(ventasState.filtered.length / ventasState.pageSize);
+    if (ventasState.currentPage < totalPages) {
+      ventasState.currentPage++;
+      renderTable();
+    }
   });
 }
 
@@ -461,6 +1010,15 @@ function bindDrawerEvents(){
     ventasState.mode = "edit";
     const v = ventasState.ventas.find(x=>x.id===ventasState.selectedId);
     renderDrawer(v || {});
+  });
+
+  // Botón Imprimir Ticket (solo en modo details)
+  $("#vBtnImprimir")?.addEventListener("click", ()=>{
+    if(!ventasState.selectedId) {
+      alert("No hay venta seleccionada para imprimir.");
+      return;
+    }
+    abrirVistaPrevia(ventasState.selectedId);
   });
 
   // Función para formatear input de moneda mientras se digita
@@ -564,7 +1122,59 @@ function bindDrawerEvents(){
 
   // recalcular cuando cambian totales/envío o producto
   $("#vTotalPago")?.addEventListener("input", recalcVentaFields);
-  $("#vPrecioEnvio")?.addEventListener("input", recalcVentaFields);
+  
+  // Sugerencias de precio de envío
+  const vPrecioEnvioInput = $("#vPrecioEnvio");
+  const vPrecioEnvioSuggestions = $("#vPrecioEnvioSuggestions");
+  
+  if (vPrecioEnvioInput && vPrecioEnvioSuggestions) {
+    vPrecioEnvioInput.addEventListener("focus", () => {
+      const totalCliente = n($("#vTotalPago")?.value || 0);
+      const calculado = Math.round((4 + (totalCliente * 0.02)) * 100) / 100;
+      
+      const sugerencias = [
+        { valor: 0, label: "$0" },
+        { valor: 3, label: "$3" },
+        { valor: 3.50, label: "$3.50" },
+        { valor: calculado, label: `$${money(calculado)} (4 + 2% del total)` }
+      ];
+      
+      let html = sugerencias.map(s => `
+        <div class="suggestion-item" data-value="${s.valor}" style="padding: 10px 12px; cursor: pointer; color: #1a1a1a; font-size: 13px; border-bottom: 1px solid #e0e0e0; transition: background 0.2s ease;">
+          ${s.label}
+        </div>
+      `).join("");
+      
+      vPrecioEnvioSuggestions.innerHTML = html;
+      vPrecioEnvioSuggestions.style.display = "block";
+      
+      // Agregar eventos a las sugerencias
+      vPrecioEnvioSuggestions.querySelectorAll(".suggestion-item").forEach(item => {
+        item.addEventListener("click", (e) => {
+          const valor = n(e.target.dataset.value);
+          vPrecioEnvioInput.value = "$" + money(valor);
+          vPrecioEnvioSuggestions.style.display = "none";
+          recalcVentaFields();
+        });
+        
+        item.addEventListener("mouseenter", () => {
+          item.style.backgroundColor = "#f5f5f5";
+        });
+        
+        item.addEventListener("mouseleave", () => {
+          item.style.backgroundColor = "transparent";
+        });
+      });
+    });
+    
+    vPrecioEnvioInput.addEventListener("blur", () => {
+      setTimeout(() => {
+        vPrecioEnvioSuggestions.style.display = "none";
+      }, 200);
+    });
+    
+    vPrecioEnvioInput.addEventListener("input", recalcVentaFields);
+  }
 
   $("#vGuardar")?.addEventListener("click", saveVenta);
   $("#vCancelar")?.addEventListener("click", ()=>{
@@ -638,6 +1248,9 @@ async function ventasLoadAll(){
     const vSnap = await getDocs(query(collection(db,"VENTAS"), orderBy("created_at","desc")));
     ventasState.ventas = vSnap.docs.map(d=>({ id: d.id, ...d.data() }));
     ventasState.filtered = [...ventasState.ventas];
+    
+    // Resetear paginación al cargar datos
+    ventasState.currentPage = 1;
 
     renderTable();
 
@@ -797,6 +1410,805 @@ async function deleteVenta(id){
 }
 
 /* ===========================
+   CSV IMPORT / EXPORT - VENTAS
+   ========================= */
+
+const CSV_HEADERS_VENTAS = [
+  "cliente",
+  "direccion",
+  "telefono",
+  "fecha",
+  "producto_id",
+  "precio_producto",
+  "precio_envio",
+  "costo_producto",
+  "ganancia",
+  "tipo_recaudo",
+  "estado_venta",
+  "estado_liquidacion",
+  "origen_venta",
+  "nombre_campana",
+  "gasto_publicidad",
+  "hora_entrega",
+  "imagen_url",
+  "notas"
+];
+
+// Parsear CSV con detección de separador
+function parseCSVVentas(csvText) {
+  const lines = csvText.trim().split("\n");
+  if (lines.length < 2) return { headers: [], rows: [] };
+
+  const headerLine = lines[0];
+  const separator = headerLine.includes(";") ? ";" : ",";
+  const headers = parseCSVLineVentas(headerLine, separator).map(h => h.toLowerCase());
+  
+  const rows = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line || !line.trim()) continue;
+
+    const values = parseCSVLineVentas(line, separator);
+    const obj = {};
+
+    headers.forEach((h, idx) => {
+      obj[h] = values[idx] || "";
+    });
+
+    if (obj.cliente && obj.cliente.trim()) {
+      rows.push(obj);
+    }
+  }
+
+  return { headers, rows };
+}
+
+// Helper para parsear línea CSV
+function parseCSVLineVentas(line, separator = ",") {
+  const values = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const nextChar = line[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && nextChar === '"') {
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === separator && !inQuotes) {
+      values.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  values.push(current.trim());
+  return values;
+}
+
+// Descargar plantilla CSV
+function descargarPlantillaVentas() {
+  const header = CSV_HEADERS_VENTAS.join(";");
+  
+  const examples = [
+    ["Juan Pérez", "Calle Principal 123", "04121234567", "2025-01-02", "IPHONE14P128GB", "1000.00", "50.00", "650.00", "350.00", "EFECTIVO", "VENTA FINALIZADA", "SI", "INSTAGRAM", "Campaña iPhone", "20.00", "14:30", "https://example.com/foto.jpg", ""],
+    ["María García", "Avenida Central 456", "04149876543", "2025-01-02", "MBA-M2-256", "1500.00", "100.00", "800.00", "700.00", "TRANSFERENCIA", "VENTA FINALIZADA", "SI", "FACEBOOK", "Black Friday", "30.00", "09:15", "https://example.com/foto.jpg", ""],
+  ];
+
+  let csv = header + "\n";
+  examples.forEach(ex => {
+    csv += ex.map(v => {
+      if (v.includes(";") || v.includes('"')) {
+        return `"${v.replace(/"/g, '""')}"`;
+      }
+      return v;
+    }).join(";") + "\n";
+  });
+
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "plantilla_ventas.csv";
+  link.click();
+}
+
+// Mostrar modal de vista previa
+function mostrarVistaPreviaVentas(datosParseados) {
+  const { headers, rows } = datosParseados;
+
+  const modal = document.createElement("div");
+  modal.className = "modal-overlay";
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+  `;
+
+  const content = document.createElement("div");
+  content.style.cssText = `
+    background: var(--bg2);
+    border-radius: 12px;
+    max-width: 90%;
+    max-height: 80vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  `;
+
+  const head = document.createElement("div");
+  head.style.cssText = `
+    padding: 16px;
+    border-bottom: 1px solid var(--stroke);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  `;
+  head.innerHTML = `
+    <h3 style="margin: 0;">Vista Previa del CSV (${rows.length} ventas)</h3>
+    <button id="btnCerrarModalV" style="background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text);">✕</button>
+  `;
+
+  const tableWrap = document.createElement("div");
+  tableWrap.style.cssText = `
+    flex: 1;
+    overflow: auto;
+    padding: 12px;
+  `;
+
+  let tableHtml = `
+    <table style="border-collapse: collapse; width: 100%; font-size: 13px;">
+      <thead>
+        <tr style="position: sticky; top: 0; background: var(--card);">
+          <th style="padding: 8px; text-align: left; border-bottom: 1px solid var(--stroke);">#</th>
+  `;
+
+  const visibleHeaders = headers.slice(0, 8);
+  visibleHeaders.forEach(h => {
+    tableHtml += `<th style="padding: 8px; text-align: left; border-bottom: 1px solid var(--stroke);">${h}</th>`;
+  });
+
+  tableHtml += `
+        </tr>
+      </thead>
+      <tbody>
+  `;
+
+  rows.slice(0, 20).forEach((row, idx) => {
+    tableHtml += `<tr style="border-bottom: 1px solid var(--stroke);">
+      <td style="padding: 8px; text-align: center; background: var(--card);">${idx + 1}</td>`;
+
+    visibleHeaders.forEach(h => {
+      const val = row[h] || "-";
+      tableHtml += `<td style="padding: 8px;">${escapeHtml(val.substring(0, 20))}</td>`;
+    });
+
+    tableHtml += `</tr>`;
+  });
+
+  if (rows.length > 20) {
+    tableHtml += `<tr><td colspan="${visibleHeaders.length + 1}" style="padding: 12px; text-align: center; color: var(--muted);">... y ${rows.length - 20} ventas más</td></tr>`;
+  }
+
+  tableHtml += `
+      </tbody>
+    </table>
+  `;
+
+  tableWrap.innerHTML = tableHtml;
+
+  const footer = document.createElement("div");
+  footer.style.cssText = `
+    padding: 12px 16px;
+    border-top: 1px solid var(--stroke);
+    display: flex;
+    gap: 10px;
+    justify-content: flex-end;
+  `;
+
+  footer.innerHTML = `
+    <button id="btnCancelarImportV" class="dc-btn dc-btn-ghost">Cancelar</button>
+    <button id="btnConfirmarImportV" class="dc-btn">Cargar ${rows.length} ventas</button>
+  `;
+
+  content.appendChild(head);
+  content.appendChild(tableWrap);
+  content.appendChild(footer);
+  modal.appendChild(content);
+  document.body.appendChild(modal);
+
+  const btnCerrar = document.getElementById("btnCerrarModalV");
+  const btnCancelar = document.getElementById("btnCancelarImportV");
+  const btnConfirmar = document.getElementById("btnConfirmarImportV");
+
+  function cerrarModal() {
+    modal.remove();
+  }
+
+  btnCerrar?.addEventListener("click", cerrarModal);
+  btnCancelar?.addEventListener("click", cerrarModal);
+
+  btnConfirmar?.addEventListener("click", async () => {
+    cerrarModal();
+    await cargarVentasDesdeCSV(rows);
+  });
+}
+
+// Cargar ventas desde CSV a Firebase
+async function cargarVentasDesdeCSV(rows) {
+  if (!rows.length) return;
+
+  const progressDiv = document.createElement("div");
+  progressDiv.style.cssText = `
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background: var(--bg2);
+    border: 1px solid var(--stroke);
+    border-radius: 8px;
+    padding: 16px;
+    z-index: 9999;
+    min-width: 300px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  `;
+
+  progressDiv.innerHTML = `
+    <div style="margin-bottom: 8px;">Cargando ventas...</div>
+    <div style="width: 100%; height: 6px; background: var(--stroke); border-radius: 3px; overflow: hidden;">
+      <div id="progressBarV" style="height: 100%; background: #4CAF50; width: 0%; transition: width 0.3s;"></div>
+    </div>
+    <div id="progressTextV" style="margin-top: 8px; font-size: 12px; color: var(--muted);">0 / ${rows.length}</div>
+  `;
+
+  document.body.appendChild(progressDiv);
+
+  let cargadas = 0;
+  const errors = [];
+
+  for (const row of rows) {
+    try {
+      const cliente = (row.cliente || "").trim();
+      const fecha = (row.fecha || "").trim();
+      const producto_id = (row.producto_id || "").trim();
+
+      if (!cliente || !fecha || !producto_id) {
+        errors.push(`Fila ${cargadas + 1}: Cliente, Fecha y Producto obligatorios`);
+        cargadas++;
+        continue;
+      }
+
+      const precio_producto = n(row.precio_producto);
+      const precio_envio = n(row.precio_envio);
+      const costo_producto = n(row.costo_producto || 0);
+      const ganancia = n(row.ganancia || 0);
+
+      const payload = {
+        cliente,
+        direccion: (row.direccion || "").trim(),
+        telefono: (row.telefono || "").trim(),
+        fecha,
+        producto_id,
+        producto_key: producto_id,
+        nombre_producto: "",
+        precio_producto,
+        precio_envio,
+        costo_producto,
+        ganancia,
+        tipo_recaudo: (row.tipo_recaudo || "").trim(),
+        estado_venta: (row.estado_venta || "").trim(),
+        estado_liquidacion: (row.estado_liquidacion || "NO").trim(),
+        origen_venta: (row.origen_venta || "").trim(),
+        nombre_campana: (row.nombre_campana || "").trim(),
+        gasto_publicidad: n(row.gasto_publicidad),
+        hora_entrega: (row.hora_entrega || "").trim(),
+        imagen_url: (row.imagen_url || "").trim(),
+        notas: (row.notas || "").trim(),
+        total_pago_cliente: precio_producto + precio_envio,
+        created_at: serverTimestamp(),
+        updated_at: serverTimestamp(),
+      };
+
+      await addDoc(collection(db, "VENTAS"), payload);
+      cargadas++;
+
+    } catch (err) {
+      errors.push(`Fila ${cargadas + 1}: ${err?.message || "Error desconocido"}`);
+      cargadas++;
+    }
+
+    const percent = Math.round((cargadas / rows.length) * 100);
+    const bar = progressDiv.querySelector("#progressBarV");
+    const text = progressDiv.querySelector("#progressTextV");
+    if (bar) bar.style.width = percent + "%";
+    if (text) text.textContent = `${cargadas} / ${rows.length}`;
+  }
+
+  progressDiv.remove();
+
+  await ventasLoadAll();
+
+  let msg = `✓ Cargadas ${cargadas} ventas`;
+  if (errors.length) {
+    msg += `\n\n⚠ Errores (${errors.length}):\n${errors.slice(0, 5).join("\n")}`;
+    if (errors.length > 5) msg += `\n... y ${errors.length - 5} más`;
+  }
+
+  alert(msg);
+}
+
+/* ===========================
+   IMPRESIÓN TÉRMICA CON VISTA PREVIA
+   ========================= */
+function generarTicketHTML(venta) {
+  const precioProducto = n(venta.precio_producto || 0);
+  const precioEnvio = n(venta.precio_envio || 0);
+  const total = n(venta.total_pago_cliente || 0);
+  const ventaId = venta.id ? venta.id.substring(0, 8).toUpperCase() : "N/A";
+  
+  // Generar URL para código QR (información de la venta)
+  const qrData = JSON.stringify({
+    id: venta.id,
+    cliente: venta.cliente,
+    total: total,
+    fecha: venta.fecha
+  });
+  const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(qrData)}`;
+
+  return `
+    <div class="ticket-container">
+      <!-- Encabezado -->
+      <div class="ticket-header">
+        <div class="store-name">DIGITAL CORTEX</div>
+        <div class="store-subtitle">Tienda de Auriculares</div>
+      </div>
+
+      <!-- Línea separadora -->
+      <div class="separator"></div>
+
+      <!-- Info de venta -->
+      <div class="ticket-section">
+        <div class="ticket-row">
+          <span class="label">VENTA #:</span>
+          <span class="value">${ventaId}</span>
+        </div>
+        <div class="ticket-row">
+          <span class="label">Fecha:</span>
+          <span class="value">${venta.fecha ? formatFechaDisplay(venta.fecha) : "N/A"}</span>
+        </div>
+        ${venta.hora_entrega ? `
+        <div class="ticket-row">
+          <span class="label">Hora:</span>
+          <span class="value">${venta.hora_entrega}</span>
+        </div>
+        ` : ''}
+      </div>
+
+      <!-- Línea separadora -->
+      <div class="separator"></div>
+
+      <!-- Datos cliente -->
+      <div class="ticket-section">
+        <div class="section-title">CLIENTE</div>
+        <div class="client-name">${venta.cliente || "Sin especificar"}</div>
+        ${venta.telefono ? `<div class="ticket-row small"><span class="label">Tel:</span> <span class="value">${venta.telefono}</span></div>` : ''}
+        ${venta.direccion ? `<div class="ticket-row small"><span class="label">Dirección:</span></div><div class="address">${venta.direccion}</div>` : ''}
+      </div>
+
+      <!-- Línea separadora -->
+      <div class="separator"></div>
+
+      <!-- Producto -->
+      <div class="ticket-section">
+        <div class="section-title">PRODUCTO</div>
+        <div class="product-name">${venta.producto_key || "N/A"}</div>
+      </div>
+
+      <!-- Línea separadora -->
+      <div class="separator"></div>
+
+      <!-- Detalles financieros -->
+      <div class="ticket-section">
+        <div class="ticket-row">
+          <span class="label">Precio:</span>
+          <span class="value amount">$${money(precioProducto)}</span>
+        </div>
+        ${precioEnvio > 0 ? `
+        <div class="ticket-row">
+          <span class="label">Envío:</span>
+          <span class="value amount">$${money(precioEnvio)}</span>
+        </div>
+        ` : ''}
+        <div class="separator-thin"></div>
+        <div class="ticket-row total">
+          <span class="label">TOTAL:</span>
+          <span class="value">$${money(total)}</span>
+        </div>
+      </div>
+
+      <!-- Línea separadora -->
+      <div class="separator"></div>
+
+      <!-- Método de pago -->
+      <div class="ticket-section">
+        <div class="ticket-row small">
+          <span class="label">Pago:</span>
+          <span class="value">${venta.tipo_recaudo || "EFECTIVO"}</span>
+        </div>
+        ${venta.proveedor_envio ? `
+        <div class="ticket-row small">
+          <span class="label">Envío:</span>
+          <span class="value">${venta.proveedor_envio}</span>
+        </div>
+        ` : ''}
+      </div>
+
+      <!-- Código QR -->
+      <div class="qr-section">
+        <img src="${qrUrl}" alt="QR" class="qr-code">
+      </div>
+
+      <!-- Garantía -->
+      <div class="separator"></div>
+      <div class="warranty-section">
+        <div class="warranty-title">GARANTÍA</div>
+        <div class="warranty-text">Cobertura: 30 días por defectos de fábrica. Presenta el comprobante en caso de reclamo. Sujeto a políticas del vendedor.</div>
+      </div>
+
+      <!-- Pie -->
+      <div class="separator"></div>
+      <div class="ticket-footer">
+        <div>GRACIAS POR SU COMPRA</div>
+        <div style="font-size: 11px; margin-top: 4px;">Vuelva pronto</div>
+      </div>
+    </div>
+  `;
+}
+
+async function abrirVistaPrevia(ventaId) {
+  try {
+    const venta = await getDoc(doc(db, "VENTAS", ventaId));
+    if (!venta.exists()) {
+      alert("No se encontró la venta");
+      return;
+    }
+
+    const ventaData = venta.data();
+    ventaData.id = ventaId;
+    const ticketHTML = generarTicketHTML(ventaData);
+
+    const ventanaPrevia = window.open("", "_blank", "width=450,height=700");
+    ventanaPrevia.document.write(`
+      <!DOCTYPE html>
+      <html lang="es">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Imprimir Ticket - ${ventaData.cliente || "Venta"}</title>
+        <style>
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+
+          body {
+            font-family: 'Courier New', 'Courier', monospace;
+            background: white;
+            padding: 20px;
+            font-size: 14px;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            text-rendering: optimizeLegibility;
+          }
+
+          .controls {
+            position: sticky;
+            top: 0;
+            background: #222;
+            padding: 10px 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 1000;
+            border-radius: 4px;
+          }
+
+          .btn {
+            padding: 10px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: bold;
+            transition: all 0.3s;
+            color: white;
+          }
+
+          .btn-print {
+            background: #4CAF50;
+          }
+
+          .btn-print:hover {
+            background: #45a049;
+          }
+
+          .btn-close {
+            background: #f44336;
+          }
+
+          .btn-close:hover {
+            background: #da190b;
+          }
+
+          .preview-container {
+            margin-top: 20px;
+            display: flex;
+            justify-content: center;
+          }
+
+          .ticket-container {
+            width: 80mm;
+            background: white;
+            padding: 10px;
+            margin: 8px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.25);
+            overflow: hidden;
+          }
+
+          .ticket-header {
+            text-align: center;
+            margin-bottom: 8px;
+            padding-top: 4px;
+          }
+
+          .store-name {
+            font-weight: bold;
+            font-size: 14px;
+            letter-spacing: 1px;
+          }
+
+          .store-subtitle {
+            font-size: 11px;
+            color: #333;
+            margin-top: 2px;
+          }
+
+          .separator {
+            border-top: 1px dashed #000;
+            margin: 6px 0;
+          }
+
+          .separator-thin {
+            border-top: 1px solid #999;
+            margin: 4px 0;
+          }
+
+          .ticket-section {
+            margin-bottom: 5px;
+            font-size: 12px;
+          }
+
+          .section-title {
+            font-weight: bold;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+            margin-bottom: 3px;
+            text-transform: uppercase;
+          }
+
+          .ticket-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+            font-size: 12px;
+            line-height: 1.4;
+          }
+
+          .ticket-row.small {
+            font-size: 11px;
+          }
+
+          .ticket-row.total {
+            font-weight: bold;
+            font-size: 13px;
+            padding: 4px 0;
+          }
+
+          .label {
+            font-weight: bold;
+            flex: 0 0 auto;
+          }
+
+          .value {
+            flex: 1;
+            text-align: right;
+            padding-left: 8px;
+          }
+
+          .value.amount {
+            font-weight: bold;
+          }
+
+          .client-name {
+            font-weight: bold;
+            font-size: 13px;
+            margin-bottom: 3px;
+            word-wrap: break-word;
+            line-height: 1.3;
+          }
+
+          .address {
+            font-size: 11px;
+            margin-left: 0;
+            word-wrap: break-word;
+            line-height: 1.3;
+          }
+
+          .product-name {
+            font-weight: bold;
+            font-size: 13px;
+            word-wrap: break-word;
+            line-height: 1.3;
+          }
+
+          .qr-section {
+            text-align: center;
+            margin: 8px 0;
+            padding: 8px 0;
+          }
+
+          .qr-code {
+            width: 90px;
+            height: 90px;
+            display: inline-block;
+            border: 2px solid #000;
+          }
+
+          .warranty-section {
+            background: white;
+            border: 1px solid #000;
+            padding: 8px;
+            border-radius: 0;
+            margin-bottom: 4px;
+            font-size: 11px;
+            page-break-inside: avoid;
+          }
+
+          .warranty-title {
+            font-weight: bold;
+            font-size: 11px;
+            margin-bottom: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #000;
+          }
+
+          .warranty-text {
+            font-size: 11px;
+            line-height: 1.5;
+            color: #000;
+            text-align: left;
+          }
+
+          .ticket-footer {
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+            margin-top: 6px;
+            padding-bottom: 4px;
+            line-height: 1.4;
+          }
+
+          /* Estilos de impresión */
+          @media print {
+            * {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              -webkit-font-smoothing: antialiased;
+              -moz-osx-font-smoothing: grayscale;
+              color: #000 !important;
+            }
+
+            body {
+              background: white !important;
+              padding: 0;
+              margin: 0;
+              font-size: 14px;
+              color: #000 !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+            }
+
+            .controls {
+              display: none;
+            }
+
+            .preview-container {
+              margin-top: 0;
+            }
+
+            .ticket-container {
+              box-shadow: none;
+              width: 80mm;
+              padding: 8px;
+              margin: 0;
+              background: white !important;
+              color: black !important;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              page-break-inside: avoid;
+            }
+
+            .ticket-header,
+            .ticket-section,
+            .separator,
+            .separator-thin,
+            .qr-section,
+            .warranty-section,
+            .ticket-footer {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color: #000 !important;
+              background: white !important;
+            }
+
+            .store-name,
+            .section-title,
+            .label,
+            .ticket-row,
+            .client-name,
+            .product-name,
+            .warranty-title,
+            .warranty-text,
+            .address,
+            .value {
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color: #000 !important;
+              font-weight: bold !important;
+            }
+
+            @page {
+              size: 80mm auto;
+              margin: 0;
+              padding: 0;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="controls">
+          <button class="btn btn-print" onclick="window.print()">🖨️ Imprimir</button>
+          <button class="btn btn-close" onclick="window.close()">❌ Cerrar</button>
+        </div>
+        <div class="preview-container">
+          ${ticketHTML}
+        </div>
+      </body>
+      </html>
+    `);
+    ventanaPrevia.document.close();
+
+  } catch (error) {
+    console.error("Error al abrir vista previa:", error);
+    alert("Error al abrir vista previa: " + (error?.message || error));
+  }
+}
+
+/* ===========================
    MOUNT / INIT
    ========================= */
 export async function mountVentas(container){
@@ -842,19 +2254,19 @@ document.body.classList.add("page-ventas");
 
   container.innerHTML = ventasTemplate();
   initResizer(container);
+  
+  // Restaurar estado del drawer
+  const isMinimized = localStorage.getItem('dc_ventas_drawer_minimized') === '1';
+  const grid = container.querySelector('.inv-grid');
+  const btn = container.querySelector('#vBtnToggleDrawer');
+  if (isMinimized && grid && btn) {
+    grid.classList.add('drawer-minimized');
+    btn.textContent = '▶ Detalles';
+  }
+
+  // Cargar datos
   bindHeaderEvents();
   await ventasLoadAll();
-
-  // Asegurar que las etiquetas del drawer conserven estilos incluso si
-  // otros módulos o reglas CSS intentan sobrescribirlos en runtime.
-  const vDrawer = document.getElementById('vDrawer');
-  if(vDrawer){
-    // Estilos controlados por CSS central; no observar cambios para forzar inline.
-    if(ventasState._styleObserver){
-      try { ventasState._styleObserver.disconnect(); } catch(e){}
-      ventasState._styleObserver = null;
-    }
-  }
 }
 
 
