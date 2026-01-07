@@ -40,7 +40,7 @@ const ventasState = {
 };
 
 // Constantes para selects
-const V_ESTADO_VENTA = ["PEDIDO PROGRAMADO","VENTA FINALIZADA","CANCELADO POR CLIENTE","DEVOLUCION"];
+const V_ESTADO_VENTA = ["pedido programado","venta finalizada","cancelado por cliente","devolucion"];
 const V_PROV_ENVIO   = ["FLASH BOX","LOS 44 EXPRESS","OTRO","RETIRO EN LOCAL"];
 const V_LIQ          = ["SI","NO"];
 const V_RECAUDO      = ["EFECTIVO","PAYPAL","TRANSFERENCIA","CHIVO WALLET","WOMPY TC","OTRO"];
@@ -873,9 +873,18 @@ function drawerHTML(data = {}){
         <label class="dc-label">IMAGEN (URL)</label>
         <input id="vImagenUrl" class="dc-input" value="${data.imagen_url || ""}" placeholder="https://..." ${dis}/>
       </div>
+
+      <div style="grid-column:1/-1;margin-top:8px;padding:10px;background:rgba(2,132,199,0.08);border-radius:8px;border-left:3px solid #0284c7;">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin:0;font-weight:600;color:var(--text);">
+          <input id="vCuadrado" type="checkbox" ${data.cuadrado ? "checked" : ""} ${dis} style="cursor:pointer;width:18px;height:18px;"/>
+          <span>Marcar para cuadre de caja</span>
+        </label>
+        <div style="font-size:0.85em;color:var(--muted);margin-top:4px;">Esta venta está lista para incluir en el cuadre de finanzas</div>
+      </div>
     </div>
 
-    <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;">
+    <div style="margin-top:12px;display:flex;gap:10px;justify-content:flex-end;align-items:center;">
+      ${isDetails ? `<div id="vCuadradoDisplay" style="display:${data.cuadrado ? "block" : "none"};color:#10b981;font-weight:600;font-size:0.9em;">✓ Marcada para cuadre</div>` : ""}
       ${isDetails ? "" : `<button id="vGuardar" class="dc-btn">Guardar</button>`}
       ${isDetails ? "" : `<button id="vCancelar" class="dc-btn dc-btn-ghost">Cancelar</button>`}
     </div>
@@ -913,7 +922,7 @@ function bindHeaderEvents(){
     ventasState.selectedId = null;
     renderDrawer({
       fecha: todayISO(),
-      estado_venta: "PEDIDO PROGRAMADO",
+      estado_venta: "pedido programado",
       estado_liquidacion: "NO",
       tipo_recaudo: "EFECTIVO",
       proveedor_envio: "FLASH BOX",
@@ -995,7 +1004,7 @@ function bindDrawerEvents(){
     ventasState.selectedId = null;
     renderDrawer({
       fecha: todayISO(),
-      estado_venta: "PEDIDO PROGRAMADO",
+      estado_venta: "pedido programado",
       estado_liquidacion: "NO",
       tipo_recaudo: "EFECTIVO",
       proveedor_envio: "FLASH BOX",
@@ -1182,6 +1191,29 @@ function bindDrawerEvents(){
     const v = ventasState.selectedId ? ventasState.ventas.find(x=>x.id===ventasState.selectedId) : null;
     renderDrawer(v || {});
   });
+
+  // Toggle cuadrado en modo details
+  const vCuadradoCheckbox = $("#vCuadrado");
+  if(vCuadradoCheckbox && ventasState.mode === "details" && ventasState.selectedId){
+    vCuadradoCheckbox.addEventListener("change", async (e) => {
+      const valor = e.target.checked;
+      try {
+        await updateDoc(doc(db, "VENTAS", ventasState.selectedId), {
+          cuadrado: valor,
+          updated_at: serverTimestamp(),
+        });
+        const displayEl = $("#vCuadradoDisplay");
+        if(displayEl) {
+          displayEl.style.display = valor ? "block" : "none";
+        }
+        showToast(valor ? "Venta marcada para cuadre" : "Venta desmarcada del cuadre", "success");
+        await ventasLoadAll();
+      } catch(err) {
+        showToast("Error al actualizar: " + err.message, "error");
+        e.target.checked = !valor; // revertir
+      }
+    });
+  }
 }
 
 function recalcVentaFields(){
@@ -1259,7 +1291,7 @@ async function ventasLoadAll(){
       ventasState.mode = "details";
       renderDrawer({
         fecha: todayISO(),
-        estado_venta: "PEDIDO PROGRAMADO",
+        estado_venta: "pedido programado",
         estado_liquidacion: "NO",
         tipo_recaudo: "EFECTIVO",
         proveedor_envio: "FLASH BOX"
@@ -1329,6 +1361,7 @@ function getFormData(){
     origen_venta: ($("#vOrigen")?.value || "").trim(),
     nombre_campana: ($("#vCampana")?.value || "").trim(),
     gasto_publicidad: parseMoneyInput($("#vGastoPub")?.value),
+    cuadrado: $("#vCuadrado")?.checked || false,
   };
 }
 
