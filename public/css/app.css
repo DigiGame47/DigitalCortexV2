@@ -758,6 +758,14 @@ input:focus{border-color: rgba(110,231,183,.35)}
   font-weight: 600;
 }
 
+.filter-group-header {
+  transition: background-color 0.15s !important;
+}
+
+.filter-group-header:hover {
+  background-color: #e8e8e8 !important;
+}
+
 /* INLINE EDITING */
 .dc-table td.editing{
   padding: 2px !important;

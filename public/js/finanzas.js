@@ -9,7 +9,7 @@
    
    FLUJO:
    1. Seleccionar período (def: 1ro al último día del mes)
-   2. Cargar ventas: VENTA FINALIZADA + estado_liquidacion = SI + no cuadradas
+   2. Cargar ventas: Venta finalizada + estado_liquidacion = SI + no cuadradas
    3. Calcular totales automáticamente
    4. Ingresar dinero físico para cuadrar
    5. Distribuir fondos
@@ -129,11 +129,11 @@ async function cargarVentasPeriodo(fechaInicio, fechaFin) {
       const venta = { id: doc.id, ...doc.data() };
       
       // Criterios de filtro:
-      // 1. Estado venta = VENTA FINALIZADA
+      // 1. Estado venta = Venta finalizada
       // 2. Estado liquidacion = SI
       // 3. No cuadrado (no tiene el campo cuadrado o es false)
       const cumpleCriterios = 
-        venta.estado_venta === "VENTA FINALIZADA" &&
+        venta.estado_venta === "Venta finalizada" &&
         venta.estado_liquidacion === "SI" &&
         !venta.cuadrado;
       

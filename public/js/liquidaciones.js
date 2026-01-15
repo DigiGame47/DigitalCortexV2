@@ -48,7 +48,7 @@ async function cargarVentasPendientes(){
     // Filtrar donde estado_liquidacion = 'NO' Y estado_venta = 'VENTA FINALIZADA'
     const q = query(ventasRef, 
       where('estado_liquidacion', '==', 'NO'),
-      where('estado_venta', '==', 'VENTA FINALIZADA')
+      where('estado_venta', '==', 'Venta finalizada')
     );
     const snap = await getDocs(q);
     

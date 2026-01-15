@@ -1,5 +1,5 @@
 /**
- * Script para normalizar los estados de venta a minúscula en Firestore
+ * Script para normalizar los estados de venta en Firestore
  * Ejecutar desde la consola del navegador (F12 → Console)
  * 
  * Copia y pega esto en la consola:
@@ -13,13 +13,15 @@
   const snapshot = await getDocs(ventasRef);
   
   const mappeo = {
-    "PEDIDO PROGRAMADO": "pedido programado",
-    "VENTA FINALIZADA": "venta finalizada",
-    "CANCELADO POR CLIENTE": "cancelado por cliente",
-    "DEVOLUCION": "devolucion",
-    "Venta finalizada": "venta finalizada",
-    "Cancelado por cliente": "cancelado por cliente",
-    "Pedido programado": "pedido programado"
+    "pedido programado": "Pedido programado",
+    "PEDIDO PROGRAMADO": "Pedido programado",
+    "venta finalizada": "Venta finalizada",
+    "VENTA FINALIZADA": "Venta finalizada",
+    "cancelado por cliente": "Cancelado por cliente",
+    "CANCELADO POR CLIENTE": "Cancelado por cliente",
+    "devolucion": "Devolucion",
+    "DEVOLUCION": "Devolucion",
+    "Devolucion": "Devolucion"
   };
   
   let actualizadas = 0;
@@ -55,7 +57,7 @@
 
 console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
-║  Normalizador de Estados de Venta - Minúsculas              ║
+║  Normalizador de Estados de Venta                            ║
 ╚═══════════════════════════════════════════════════════════════╝
 
 📝 Instrucciones:
@@ -73,13 +75,15 @@ console.log(`
   const snapshot = await getDocs(ventasRef);
   
   const mappeo = {
-    "PEDIDO PROGRAMADO": "pedido programado",
-    "VENTA FINALIZADA": "venta finalizada",
-    "CANCELADO POR CLIENTE": "cancelado por cliente",
-    "DEVOLUCION": "devolucion",
-    "Venta finalizada": "venta finalizada",
-    "Cancelado por cliente": "cancelado por cliente",
-    "Pedido programado": "pedido programado"
+    "pedido programado": "Pedido programado",
+    "PEDIDO PROGRAMADO": "Pedido programado",
+    "venta finalizada": "Venta finalizada",
+    "VENTA FINALIZADA": "Venta finalizada",
+    "cancelado por cliente": "Cancelado por cliente",
+    "CANCELADO POR CLIENTE": "Cancelado por cliente",
+    "devolucion": "Devolucion",
+    "DEVOLUCION": "Devolucion",
+    "Devolucion": "Devolucion"
   };
   
   let actualizadas = 0;
@@ -117,7 +121,7 @@ console.log(`
 4. Presiona Enter
 5. Espera a que aparezca el mensaje de éxito
 6. Recarga la página (F5)
-7. Las categorías ahora aparecerán en minúsculas
+7. Los estados de venta ahora estarán normalizados
 
 ✨ ¡Listo!
 `);

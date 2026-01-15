@@ -40,7 +40,7 @@ const ventasState = {
 };
 
 // Constantes para selects
-const V_ESTADO_VENTA = ["pedido programado","venta finalizada","cancelado por cliente","devolucion"];
+const V_ESTADO_VENTA = ["Pedido programado","Venta finalizada","Cancelado por cliente","Devolucion"];
 const V_PROV_ENVIO   = ["FLASH BOX","LOS 44 EXPRESS","OTRO","RETIRO EN LOCAL"];
 const V_LIQ          = ["SI","NO"];
 const V_RECAUDO      = ["EFECTIVO","PAYPAL","TRANSFERENCIA","CHIVO WALLET","WOMPY TC","OTRO"];
@@ -50,6 +50,16 @@ function n(v){ return Number(v || 0); }
 function money(v){ return n(v).toFixed(2); }
 function norm(s){ return (s||"").toString().trim().toUpperCase(); }
 function normalize(s){ return (s||"").toString().trim().toUpperCase(); }
+function normalizeEstadoVenta(estado) {
+  const estadoNorm = (estado || "").trim().toLowerCase();
+  const mapeo = {
+    "pedido programado": "Pedido programado",
+    "venta finalizada": "Venta finalizada",
+    "cancelado por cliente": "Cancelado por cliente",
+    "devolucion": "Devolucion"
+  };
+  return mapeo[estadoNorm] || estado;
+}
 function todayISO(){
   const d = new Date();
   const pad = (x)=> String(x).padStart(2,"0");
@@ -59,6 +69,8 @@ function todayISO(){
 // Conversión de fecha Excel a ISO
 function excelDateToISO(excelDate) {
   if (!excelDate) return "";
+  // Evitar procesar strings literales "undefined"
+  if (excelDate === "undefined" || excelDate.toString().toLowerCase() === "undefined") return "";
   const num = Number(excelDate);
   if (isNaN(num)) {
     // Si ya es un string con formato de fecha, devolverlo
@@ -69,7 +81,8 @@ function excelDateToISO(excelDate) {
       const [d, m, y] = str.split("/");
       return `${y}-${m.padStart(2,"0")}-${d.padStart(2,"0")}`;
     }
-    return str;
+    // No coincide con formato conocido
+    return "";
   }
   // Excel date serial (días desde 1900-01-01, con bug del 1900)
   // día 1 = 1900-01-01, día 60 = 1900-02-29 (año bisiesto falso)
@@ -84,9 +97,14 @@ function excelDateToISO(excelDate) {
 // Formatear fecha para mostrar: YYYY-MM-DD → DD/MM/YYYY
 function formatFechaDisplay(fecha) {
   if (!fecha) return "";
+  // Evitar procesar strings literales "undefined"
+  if (fecha === "undefined" || fecha.toString().toLowerCase() === "undefined") return "";
   const isoDate = excelDateToISO(fecha);
   if (!isoDate) return "";
-  const [year, month, day] = isoDate.split("-");
+  const parts = isoDate.split("-");
+  // Validar que tenemos exactamente 3 partes (YYYY-MM-DD)
+  if (parts.length !== 3 || !parts[0] || !parts[1] || !parts[2]) return "";
+  const [year, month, day] = parts;
   return `${day}/${month}/${year}`;
 }
 
@@ -263,9 +281,10 @@ function rowHTML(v){
   
   // Clase condicional para el estado
   let estadoClass = "estado-otro";
-  if (v.estado_venta === "VENTA FINALIZADA") {
+  const estadoNorm = (v.estado_venta || "").toLowerCase();
+  if (estadoNorm === "venta finalizada") {
     estadoClass = "estado-finalizada";
-  } else if (v.estado_venta === "PEDIDO PROGRAMADO") {
+  } else if (estadoNorm === "pedido programado") {
     estadoClass = "estado-pendiente";
   }
   
@@ -412,18 +431,14 @@ function getColumnValues(col) {
       case "fecha": 
         // Normalizar la fecha a formato YYYY/MM/DD
         let fechaRaw = v.fecha || "";
-        if (fechaRaw) {
+        if (fechaRaw && fechaRaw !== "undefined" && fechaRaw.toString().toLowerCase() !== "undefined") {
           // Intentar convertir de varios formatos a YYYY-MM-DD primero
           let fechaISO = excelDateToISO(fechaRaw);
-          if (fechaISO && fechaISO.length > 0) {
+          if (fechaISO && fechaISO.length > 0 && fechaISO !== "undefined") {
             const parts = fechaISO.split("-");
-            if (parts.length === 3) {
+            if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
               val = `${parts[0]}/${parts[1]}/${parts[2]}`;
-            } else {
-              val = fechaRaw;
             }
-          } else {
-            val = fechaRaw;
           }
         }
         break;
@@ -441,6 +456,8 @@ function getColumnValues(col) {
     return Array.from(values).sort((a, b) => {
       const [ay, am, ad] = a.split("/");
       const [by, bm, bd] = b.split("/");
+      // Validar que tenemos números válidos antes de comparar
+      if (!ay || !am || !ad || !by || !bm || !bd) return 0;
       return new Date(by, bm - 1, bd) - new Date(ay, am - 1, ad);
     });
   }
@@ -449,11 +466,29 @@ function getColumnValues(col) {
 }
 
 function applyColumnFilter(col, value) {
-  // Aplica filtro en una columna específica
+  // Aplica filtro en una columna específica - soporta múltiples valores (array)
   if (value === "") {
     delete ventasState.filters[col];
   } else {
-    ventasState.filters[col] = value;
+    // Para columnas de fecha, almacenar como array para permitir múltiples selecciones
+    if (col === "fecha") {
+      if (!ventasState.filters[col]) {
+        ventasState.filters[col] = [];
+      }
+      // Toggle: si ya existe, remover; si no, agregar
+      const idx = ventasState.filters[col].indexOf(value);
+      if (idx > -1) {
+        ventasState.filters[col].splice(idx, 1);
+      } else {
+        ventasState.filters[col].push(value);
+      }
+      // Si está vacío, eliminar el filtro
+      if (ventasState.filters[col].length === 0) {
+        delete ventasState.filters[col];
+      }
+    } else {
+      ventasState.filters[col] = value;
+    }
   }
   
   applyFilters();
@@ -483,39 +518,81 @@ function applyFilters() {
     // Filtro liquidación (exact match, respetando mayúsculas)
     if (liquidacion && (v.estado_liquidacion || "").trim() !== liquidacion) return false;
     
-    // Filtros de columnas (exact match, respetando mayúsculas)
+    // Filtros de columnas
     for (const [col, val] of Object.entries(columnFilters)) {
-      let cellVal = "";
-      switch(col) {
-        case "fecha": 
-          // Convertir formato a YYYY/MM/DD para comparar
-          let fechaRaw = v.fecha || "";
-          if (fechaRaw) {
-            let fechaISO = excelDateToISO(fechaRaw);
-            if (fechaISO) {
-              const [year, month, day] = fechaISO.split("-");
-              cellVal = `${year}/${month}/${day}`;
+      // Si es un array (múltiples fechas), hacer búsqueda dentro del array
+      if (Array.isArray(val)) {
+        let cellVal = "";
+        switch(col) {
+          case "fecha": 
+            // Convertir formato a YYYY/MM/DD para comparar
+            let fechaRaw = v.fecha || "";
+            if (fechaRaw && fechaRaw !== "undefined" && fechaRaw.toString().toLowerCase() !== "undefined") {
+              let fechaISO = excelDateToISO(fechaRaw);
+              if (fechaISO) {
+                const parts = fechaISO.split("-");
+                if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                  const [year, month, day] = parts;
+                  cellVal = `${year}/${month}/${day}`;
+                }
+              }
             }
+            break;
+        }
+        // Verificar si cellVal está en el array de valores seleccionados O si el mes completo está seleccionado
+        const encontrado = val.some(v => {
+          // Búsqueda exacta por día
+          if (v === cellVal) return true;
+          // Búsqueda por mes (YYYY/MM/*)
+          const [year, month] = cellVal.split("/");
+          const [vYear, vMonth] = v.split("/");
+          if (vYear === year && vMonth === month && !v.includes("/0") && !v.includes("/1") && !v.includes("/2") && !v.includes("/3")) {
+            // Es un selector de mes (formato YYYY/MM sin día específico)
+            return true;
           }
-          break;
-        case "producto": cellVal = v.producto_key || ""; break;
-        case "cliente": cellVal = v.cliente || ""; break;
-        case "telefono": cellVal = v.telefono || ""; break;
-        case "estado": cellVal = v.estado_venta || ""; break;
-        case "liquidacion": cellVal = v.estado_liquidacion || ""; break;
+          return false;
+        });
+        if (!encontrado) return false;
+      } else {
+        // Para valores string simple (no array)
+        let cellVal = "";
+        switch(col) {
+          case "fecha": 
+            // Convertir formato a YYYY/MM/DD para comparar
+            let fechaRaw = v.fecha || "";
+            if (fechaRaw && fechaRaw !== "undefined" && fechaRaw.toString().toLowerCase() !== "undefined") {
+              let fechaISO = excelDateToISO(fechaRaw);
+              if (fechaISO) {
+                const parts = fechaISO.split("-");
+                if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                  const [year, month, day] = parts;
+                  cellVal = `${year}/${month}/${day}`;
+                }
+              }
+            }
+            break;
+          case "producto": cellVal = v.producto_key || ""; break;
+          case "cliente": cellVal = v.cliente || ""; break;
+          case "telefono": cellVal = v.telefono || ""; break;
+          case "estado": cellVal = v.estado_venta || ""; break;
+          case "liquidacion": cellVal = v.estado_liquidacion || ""; break;
+        }
+        if (cellVal.trim() !== val.trim()) return false;
       }
-      if (cellVal.trim() !== val.trim()) return false;
     }
     
     // Por defecto, mostrar solo mes actual (si no hay filtro de fecha aplicado)
     if (!columnFilters.fecha) {
       let fechaRaw = v.fecha || "";
-      if (fechaRaw) {
+      if (fechaRaw && fechaRaw !== "undefined" && fechaRaw.toString().toLowerCase() !== "undefined") {
         let fechaISO = excelDateToISO(fechaRaw);
         if (fechaISO) {
-          const [year, month, day] = fechaISO.split("-");
-          const fechaFormato = `${year}/${month}`;
-          if (fechaFormato !== mesActual) return false;
+          const parts = fechaISO.split("-");
+          if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+            const [year, month, day] = parts;
+            const fechaFormato = `${year}/${month}`;
+            if (fechaFormato !== mesActual) return false;
+          }
         }
       }
     }
@@ -613,33 +690,149 @@ function bindColumnFilters() {
         if (!isOpen) {
           // Renderizar opciones
           const values = getColumnValues(col);
-          const current = ventasState.filters?.[col] || "";
+          const currentArray = Array.isArray(ventasState.filters?.[col]) ? ventasState.filters[col] : [];
           
-          dropdown.innerHTML = `
-            <div style="padding:8px;">
-              <div class="filter-option ${current === "" ? "active" : ""}" data-value="">
-                ✓ Todos
-              </div>
-              ${values.map(v => {
-                // Formatear fechas si es columna fecha
-                const displayValue = col === "fecha" ? formatFechaDisplay(v) : v;
-                return `
-                <div class="filter-option ${current === v ? "active" : ""}" data-value="${v}">
-                  ✓ ${displayValue}
-                </div>
-              `}).join("")}
-            </div>
-          `;
-          
-          // Eventos de selección en opciones
-          dropdown.querySelectorAll(".filter-option").forEach(opt => {
-            opt.addEventListener("click", (e) => {
-              e.stopPropagation();
-              const value = opt.dataset.value;
-              applyColumnFilter(col, value);
-              dropdown.style.display = "none";
+          // Si es filtro de fecha, agrupar jerárquicamente con multi-select
+          if (col === "fecha") {
+            const grouped = {};
+            values.forEach(v => {
+              const parts = v.split("/");
+              if (parts.length === 3 && parts[0] && parts[1] && parts[2]) {
+                const [year, month, day] = parts;
+                if (!grouped[year]) grouped[year] = {};
+                if (!grouped[year][month]) grouped[year][month] = [];
+                grouped[year][month].push({value: v, day});
+              }
             });
-          });
+            
+            const yearsSorted = Object.keys(grouped).sort().reverse();
+            const selectedCount = currentArray.length;
+            let html = `<div style="padding:8px; max-height:400px; overflow-y:auto;">
+              <div class="filter-option ${selectedCount === 0 ? "active" : ""}" data-value="" style="font-weight:bold; margin-bottom:8px; cursor:pointer;">
+                ${selectedCount === 0 ? "✓" : "○"} Todos ${selectedCount > 0 ? `(${selectedCount} seleccionados)` : ""}
+              </div>`;
+            
+            yearsSorted.forEach(year => {
+              const monthsSorted = Object.keys(grouped[year]).sort().reverse();
+              html += `
+                <div style="margin-left:0; margin-bottom:8px;">
+                  <div class="filter-group-header" style="cursor:pointer; font-weight:bold; padding:4px; background:#f0f0f0; border-radius:3px; user-select:none;" data-year="${year}">
+                    ▼ ${year}
+                  </div>
+                  <div class="filter-group-content" style="margin-left:12px; display:block;">`;
+              
+              monthsSorted.forEach(month => {
+                const monthNames = ["", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", 
+                                   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+                const monthName = monthNames[parseInt(month)] || month;
+                const monthKey = `${year}/${month}`;
+                const daysInMonth = grouped[year][month].length;
+                const selectedInMonth = grouped[year][month].filter(item => currentArray.includes(item.value)).length;
+                
+                html += `
+                  <div style="margin-bottom:6px;">
+                    <div class="filter-group-header" style="cursor:pointer; font-weight:500; padding:3px; background:#f5f5f5; border-radius:3px; margin-left:8px; user-select:none;" data-month="${monthKey}">
+                      ▼ ${monthName} ${selectedInMonth > 0 ? `(${selectedInMonth}/${daysInMonth})` : ""}
+                    </div>
+                    <div class="filter-group-content" style="margin-left:20px; display:block;">`;
+                
+                grouped[year][month].forEach(item => {
+                  const isSelected = currentArray.includes(item.value);
+                  html += `
+                    <div class="filter-option" data-value="${item.value}" style="padding:2px 4px; cursor:pointer;">
+                      ${isSelected ? "✓" : "○"} Día ${item.day}
+                    </div>`;
+                });
+                
+                html += `</div></div>`;
+              });
+              
+              html += `</div></div>`;
+            });
+            
+            html += `</div>`;
+            dropdown.innerHTML = html;
+            
+            // Agregar funcionalidad de expand/collapse y seleccionar mes
+            dropdown.querySelectorAll(".filter-group-header").forEach(header => {
+              // Toggle expand/collapse
+              header.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const content = header.nextElementSibling;
+                if (content && content.classList.contains("filter-group-content")) {
+                  const isVisible = content.style.display !== "none";
+                  content.style.display = isVisible ? "none" : "block";
+                  header.textContent = header.textContent.replace(/^[▼▶]/, isVisible ? "▶" : "▼");
+                }
+              });
+              
+              // Doble-click para seleccionar mes completo
+              header.addEventListener("dblclick", (e) => {
+                e.stopPropagation();
+                const monthKey = header.dataset.month;
+                if (monthKey) {
+                  // Es un header de mes: seleccionar/deseleccionar todos los días del mes
+                  const [year, month] = monthKey.split("/");
+                  if (grouped[year] && grouped[year][month]) {
+                    const daysInMonth = grouped[year][month];
+                    const allSelected = daysInMonth.every(item => currentArray.includes(item.value));
+                    
+                    daysInMonth.forEach(item => {
+                      if (allSelected) {
+                        const idx = currentArray.indexOf(item.value);
+                        if (idx > -1) currentArray.splice(idx, 1);
+                      } else {
+                        if (!currentArray.includes(item.value)) currentArray.push(item.value);
+                      }
+                    });
+                  }
+                }
+              });
+            });
+            
+            // Eventos de selección en opciones individuales
+            dropdown.querySelectorAll(".filter-option").forEach(opt => {
+              opt.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const value = opt.dataset.value;
+                if (value === "") {
+                  // Limpiar todo
+                  ventasState.filters[col] = [];
+                  delete ventasState.filters[col];
+                  applyFilters();
+                  dropdown.style.display = "none";
+                } else {
+                  applyColumnFilter(col, value);
+                  // Mantener dropdown abierto para multi-select
+                  setTimeout(() => bindColumnFilters(), 0);
+                }
+              });
+            });
+          } else {
+            // Para otras columnas, mostrar lista simple
+            dropdown.innerHTML = `
+              <div style="padding:8px;">
+                <div class="filter-option ${currentArray === "" ? "active" : ""}" data-value="">
+                  ✓ Todos
+                </div>
+                ${values.map(v => `
+                <div class="filter-option ${currentArray === v ? "active" : ""}" data-value="${v}">
+                  ✓ ${v}
+                </div>
+              `).join("")}
+              </div>
+            `;
+            
+            // Eventos de selección en opciones
+            dropdown.querySelectorAll(".filter-option").forEach(opt => {
+              opt.addEventListener("click", (e) => {
+                e.stopPropagation();
+                const value = opt.dataset.value;
+                applyColumnFilter(col, value);
+                dropdown.style.display = "none";
+              });
+            });
+          }
           
           dropdown.style.display = "block";
         } else {
@@ -922,7 +1115,7 @@ function bindHeaderEvents(){
     ventasState.selectedId = null;
     renderDrawer({
       fecha: todayISO(),
-      estado_venta: "pedido programado",
+      estado_venta: "Pedido programado",
       estado_liquidacion: "NO",
       tipo_recaudo: "EFECTIVO",
       proveedor_envio: "FLASH BOX",
@@ -1004,7 +1197,7 @@ function bindDrawerEvents(){
     ventasState.selectedId = null;
     renderDrawer({
       fecha: todayISO(),
-      estado_venta: "pedido programado",
+      estado_venta: "Pedido programado",
       estado_liquidacion: "NO",
       tipo_recaudo: "EFECTIVO",
       proveedor_envio: "FLASH BOX",
@@ -1291,7 +1484,7 @@ async function ventasLoadAll(){
       ventasState.mode = "details";
       renderDrawer({
         fecha: todayISO(),
-        estado_venta: "pedido programado",
+        estado_venta: "Pedido programado",
         estado_liquidacion: "NO",
         tipo_recaudo: "EFECTIVO",
         proveedor_envio: "FLASH BOX"
@@ -1531,8 +1724,8 @@ function descargarPlantillaVentas() {
   const header = CSV_HEADERS_VENTAS.join(";");
   
   const examples = [
-    ["Juan Pérez", "Calle Principal 123", "04121234567", "2025-01-02", "IPHONE14P128GB", "1000.00", "50.00", "650.00", "350.00", "EFECTIVO", "VENTA FINALIZADA", "SI", "INSTAGRAM", "Campaña iPhone", "20.00", "14:30", "https://example.com/foto.jpg", ""],
-    ["María García", "Avenida Central 456", "04149876543", "2025-01-02", "MBA-M2-256", "1500.00", "100.00", "800.00", "700.00", "TRANSFERENCIA", "VENTA FINALIZADA", "SI", "FACEBOOK", "Black Friday", "30.00", "09:15", "https://example.com/foto.jpg", ""],
+    ["Juan Pérez", "Calle Principal 123", "04121234567", "2025-01-02", "IPHONE14P128GB", "1000.00", "50.00", "650.00", "350.00", "EFECTIVO", "Venta finalizada", "SI", "INSTAGRAM", "Campaña iPhone", "20.00", "14:30", "https://example.com/foto.jpg", ""],
+    ["María García", "Avenida Central 456", "04149876543", "2025-01-02", "MBA-M2-256", "1500.00", "100.00", "800.00", "700.00", "TRANSFERENCIA", "Venta finalizada", "SI", "FACEBOOK", "Black Friday", "30.00", "09:15", "https://example.com/foto.jpg", ""],
   ];
 
   let csv = header + "\n";
@@ -1742,7 +1935,7 @@ async function cargarVentasDesdeCSV(rows) {
         costo_producto,
         ganancia,
         tipo_recaudo: (row.tipo_recaudo || "").trim(),
-        estado_venta: (row.estado_venta || "").trim(),
+        estado_venta: normalizeEstadoVenta(row.estado_venta || ""),
         estado_liquidacion: (row.estado_liquidacion || "NO").trim(),
         origen_venta: (row.origen_venta || "").trim(),
         nombre_campana: (row.nombre_campana || "").trim(),
